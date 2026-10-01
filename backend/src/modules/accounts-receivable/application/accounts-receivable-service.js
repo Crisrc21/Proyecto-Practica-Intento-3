@@ -5,7 +5,8 @@ function enrichInvoice(invoice, customers) {
   const creditNotes = invoice.notasCredito.reduce((total, item) => total + item.monto, 0);
   const debitNotes = invoice.notasDebito.reduce((total, item) => total + item.monto, 0);
   const paid = invoice.pagos.reduce((total, item) => total + item.monto, 0);
-  const adjustedAmount = Math.max(invoice.monto - creditNotes + debitNotes, 0);
+  const adjustedAmount = invoice.anulada ? 0 : Math.max(invoice.monto - creditNotes + debitNotes, 0);
+  const voidedByCreditNote = invoice.notasCredito.some((item) => item.motivo === "Anulación total");
   const pendingBalance = Math.max(adjustedAmount - paid, 0);
   const today = new Date();
   const dueDate = new Date(`${invoice.fechaVencimiento}T00:00:00`);
@@ -19,7 +20,7 @@ function enrichInvoice(invoice, customers) {
     montoCobrado: paid,
     estadoVencimiento: pendingBalance > 0 && overdueDays > 0 ? dueStatuses.overdue : dueStatuses.current,
     estadoPago: pendingBalance === 0 ? paymentStatuses.paid : paid > 0 ? paymentStatuses.partial : paymentStatuses.unpaid,
-    estadoDocumental: adjustedAmount === 0 && creditNotes > 0 ? documentStatuses.voided : documentStatuses.active,
+    estadoDocumental: invoice.anulada || voidedByCreditNote ? documentStatuses.voided : documentStatuses.active,
     diasVencidos: overdueDays,
     progresoPago: adjustedAmount === 0 ? 100 : Math.round((paid / adjustedAmount) * 100)
   };
@@ -40,13 +41,13 @@ export function createAccountsReceivableService(repository) {
       carteraTotal: montoCobrado + montoPendiente,
       montoCobrado,
       montoPendiente,
-      pendienteVigente: invoices
+      pendienteEnPlazo: invoices
         .filter((invoice) => invoice.estadoVencimiento === dueStatuses.current)
         .reduce((total, invoice) => total + invoice.saldoPendiente, 0),
       pendienteVencido: invoices
         .filter((invoice) => invoice.estadoVencimiento === dueStatuses.overdue)
         .reduce((total, invoice) => total + invoice.saldoPendiente, 0),
-      facturasVigentes: invoices.filter((invoice) => invoice.estadoVencimiento === dueStatuses.current).length,
+      facturasEnPlazo: invoices.filter((invoice) => invoice.estadoVencimiento === dueStatuses.current).length,
       facturasVencidas: invoices.filter((invoice) => invoice.estadoVencimiento === dueStatuses.overdue).length
     };
   }

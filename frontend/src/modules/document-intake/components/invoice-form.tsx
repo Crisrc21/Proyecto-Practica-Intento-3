@@ -136,8 +136,7 @@ export function InvoiceForm({
     <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="overflow-hidden dark:border-stone-700 dark:bg-stone-950/85">
-          <CardHeader className="border-b bg-gradient-to-r from-orange-50 via-white to-white dark:border-stone-700 dark:bg-[linear-gradient(90deg,rgba(249,115,22,0.18),rgba(28,25,23,0.92)_34%,rgba(28,25,23,0.78))]">
-            <div className="mb-2 h-1 w-16 rounded-full bg-gradient-to-r from-orange-500 to-amber-300" />
+          <CardHeader className="border-b bg-stone-50/70 dark:border-stone-700 dark:bg-stone-900/50">
             <CardTitle>{tituloDocumento}</CardTitle>
             <CardDescription>
               {descripcionDocumento}
@@ -148,7 +147,7 @@ export function InvoiceForm({
               <div className="space-y-2">
                 <Label htmlFor="numeroSii">Número SII</Label>
                 <div className="flex overflow-hidden rounded-md border border-input bg-white shadow-sm focus-within:ring-2 focus-within:ring-ring dark:bg-stone-900">
-                  <span className="flex min-w-14 items-center justify-center border-r bg-primary/10 px-3 text-sm font-semibold text-primary dark:border-stone-700 dark:bg-orange-500/10 dark:text-orange-300">
+                  <span className="flex min-w-14 items-center justify-center border-r bg-stone-100 px-3 text-sm font-semibold text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
                     {prefijoDocumento}
                   </span>
                   <Input
@@ -287,9 +286,9 @@ export function InvoiceForm({
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="pdf">Archivo PDF</Label>
-                <label className="group flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-primary/30 bg-[linear-gradient(135deg,rgba(9,106,124,0.08),rgba(20,148,109,0.08))] px-4 py-6 text-center transition hover:border-primary hover:bg-primary/10 dark:bg-orange-500/5 dark:hover:bg-orange-500/10">
+                <label className="group flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-stone-300 bg-stone-50/70 px-4 py-6 text-center transition hover:border-orange-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900/60 dark:hover:border-orange-500/40 dark:hover:bg-stone-900">
                   <UploadCloud
-                    className="size-9 text-primary transition group-hover:-translate-y-0.5"
+                    className="size-9 text-stone-400 transition group-hover:-translate-y-0.5 group-hover:text-orange-500"
                     aria-hidden="true"
                   />
                   <span className="mt-3 text-sm font-semibold">Subir PDF del documento</span>

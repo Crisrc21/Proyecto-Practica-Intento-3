@@ -41,6 +41,8 @@ export function calcularFechaVencimiento(
 }
 
 export function calcularMontoAjustado(factura: Factura) {
+  if (factura.anulada) return 0;
+
   const notasDebito = factura.notasDebito.reduce((total, nota) => total + nota.monto, 0);
   const notasCredito = factura.notasCredito.reduce(
     (total, nota) => total + nota.monto,
@@ -61,15 +63,15 @@ export function calcularSaldoFactura(factura: Factura) {
 export function calcularEstadoPago(factura: Factura) {
   const saldo = calcularSaldoFactura(factura);
 
-  if (saldo === 0) return "Pagado Completamente";
-  if (saldo > 0 && factura.pagos.length > 0) return "Pagado Parcialmente";
-  return "No Pagado";
+  if (saldo === 0) return "Pagado";
+  if (saldo > 0 && factura.pagos.length > 0) return "Pago parcial";
+  return "No pagado";
 }
 
 export function calcularEstadoVencimiento(factura: Factura, today = new Date()) {
   return startOfDay(today) <= toLocalDate(factura.fechaVencimiento)
-    ? "Factura Vigente"
-    : "Factura Vencida";
+    ? "En plazo"
+    : "Vencida";
 }
 
 export function calcularDiasVencidos(factura: Factura, today = new Date()) {
@@ -88,11 +90,13 @@ export function calcularDiasAtraso(factura: Factura) {
 }
 
 export function calcularEstadoDocumental(factura: Factura) {
+  if (factura.anulada) return "Anulado";
+
   const anuladaPorNC = factura.notasCredito.some(
     (nota) => nota.motivo === "Anulación total"
   );
 
-  return anuladaPorNC && calcularSaldoFactura(factura) === 0 ? "Anulada" : "Vigente";
+  return anuladaPorNC && calcularSaldoFactura(factura) === 0 ? "Anulado" : "Activo";
 }
 
 export function enriquecerFactura(
@@ -177,6 +181,16 @@ export function generarTimelineFactura(factura: Factura): EventoTimeline[] {
     });
   });
 
+  if (factura.anulada && !factura.notasCredito.some((nota) => nota.motivo === "Anulación total")) {
+    eventos.push({
+      id: `${factura.id}-anulacion`,
+      fecha: factura.fechaEmision,
+      titulo: "Documento anulado",
+      descripcion: "Documento anulado en Buk Finanzas",
+      tipo: "Anulación"
+    });
+  }
+
   factura.documentosRelacionados?.forEach((documento) => {
     eventos.push({
       id: documento.id,
@@ -219,36 +233,42 @@ export function calcularKpisDashboard(
   today = new Date()
 ): KpisDashboard {
   const calculadas = facturas.map((factura) => enriquecerFactura(factura, clientes, today));
+  return calcularKpisDesdeFacturasCalculadas(calculadas);
+}
+
+export function calcularKpisDesdeFacturasCalculadas(
+  calculadas: FacturaCalculada[]
+): KpisDashboard {
   const montoCobrado = calculadas.reduce((total, factura) => total + factura.montoCobrado, 0);
   const montoPendiente = calculadas.reduce(
     (total, factura) => total + factura.saldoPendiente,
     0
   );
-  const pendienteVigente = calculadas
-    .filter((factura) => factura.estadoVencimiento === "Factura Vigente")
+  const pendienteEnPlazo = calculadas
+    .filter((factura) => factura.estadoVencimiento === "En plazo")
     .reduce((total, factura) => total + factura.saldoPendiente, 0);
   const pendienteVencido = calculadas
-    .filter((factura) => factura.estadoVencimiento === "Factura Vencida")
+    .filter((factura) => factura.estadoVencimiento === "Vencida")
     .reduce((total, factura) => total + factura.saldoPendiente, 0);
 
   return {
     carteraTotal: montoCobrado + montoPendiente,
     montoCobrado,
     montoPendiente,
-    pendienteVigente,
+    pendienteEnPlazo,
     pendienteVencido,
-    facturasVigentes: calculadas.filter(
-      (factura) => factura.estadoVencimiento === "Factura Vigente"
+    facturasEnPlazo: calculadas.filter(
+      (factura) => factura.estadoVencimiento === "En plazo"
     ).length,
     facturasVencidas: calculadas.filter(
-      (factura) => factura.estadoVencimiento === "Factura Vencida"
+      (factura) => factura.estadoVencimiento === "Vencida"
     ).length,
     facturasPagadasCompletamente: calculadas.filter(
-      (factura) => factura.estadoPago === "Pagado Completamente"
+      (factura) => factura.estadoPago === "Pagado"
     ).length,
     distribucionCartera: {
       cobrado: montoCobrado,
-      pendienteVigente,
+      pendienteEnPlazo,
       pendienteVencido
     },
     aging: [
@@ -257,7 +277,7 @@ export function calcularKpisDashboard(
         monto: calculadas
           .filter(
             (factura) =>
-              factura.estadoVencimiento === "Factura Vencida" &&
+              factura.estadoVencimiento === "Vencida" &&
               factura.saldoPendiente > 0 &&
               factura.diasVencidos >= 0 &&
               factura.diasVencidos <= 30
@@ -269,7 +289,7 @@ export function calcularKpisDashboard(
         monto: calculadas
           .filter(
             (factura) =>
-              factura.estadoVencimiento === "Factura Vencida" &&
+              factura.estadoVencimiento === "Vencida" &&
               factura.saldoPendiente > 0 &&
               factura.diasVencidos >= 31 &&
               factura.diasVencidos <= 60
@@ -281,7 +301,7 @@ export function calcularKpisDashboard(
         monto: calculadas
           .filter(
             (factura) =>
-              factura.estadoVencimiento === "Factura Vencida" &&
+              factura.estadoVencimiento === "Vencida" &&
               factura.saldoPendiente > 0 &&
               factura.diasVencidos >= 61 &&
               factura.diasVencidos <= 90
@@ -293,7 +313,7 @@ export function calcularKpisDashboard(
         monto: calculadas
           .filter(
             (factura) =>
-              factura.estadoVencimiento === "Factura Vencida" &&
+              factura.estadoVencimiento === "Vencida" &&
               factura.saldoPendiente > 0 &&
               factura.diasVencidos > 90
           )

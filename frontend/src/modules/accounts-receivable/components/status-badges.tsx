@@ -3,9 +3,9 @@ import { EstadoDocumental, EstadoPago, EstadoVencimiento } from "@/modules/accou
 
 export function EstadoPagoBadge({ estado }: { estado: EstadoPago }) {
   const tone =
-    estado === "Pagado Completamente"
+    estado === "Pagado"
       ? "success"
-      : estado === "Pagado Parcialmente"
+      : estado === "Pago parcial"
         ? "warning"
         : "muted";
 
@@ -14,10 +14,10 @@ export function EstadoPagoBadge({ estado }: { estado: EstadoPago }) {
 
 export function EstadoVencimientoBadge({ estado }: { estado: EstadoVencimiento }) {
   return (
-    <Badge tone={estado === "Factura Vencida" ? "danger" : "success"}>{estado}</Badge>
+    <Badge tone={estado === "Vencida" ? "danger" : "success"}>{estado}</Badge>
   );
 }
 
 export function EstadoDocumentalBadge({ estado }: { estado: EstadoDocumental }) {
-  return <Badge tone={estado === "Anulada" ? "danger" : "default"}>{estado}</Badge>;
+  return <Badge tone={estado === "Anulado" ? "danger" : "default"}>{estado}</Badge>;
 }

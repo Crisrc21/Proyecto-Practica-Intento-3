@@ -1,0 +1,40 @@
+.project-directory-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.project-directory-heading h2{font-size:20px;font-weight:600}
+.project-signature-legend{display:flex;gap:18px;font-size:12px;color:var(--project-secondary)}.project-signature-legend span{display:flex;align-items:center;gap:6px}.project-signature-legend span:first-child svg{color:#27815a}.project-signature-legend span:last-child svg{color:#af761b}
+.project-directory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.project-directory-card{display:flex;flex-direction:column;min-width:0;min-height:245px;text-align:left;background:var(--project-surface);border:1px solid var(--project-border);border-radius:12px;overflow:hidden;transition:box-shadow .15s,transform .15s}
+.project-directory-card:hover{box-shadow:0 8px 22px #00000012;transform:translateY(-2px)}.project-directory-card:focus-within{outline:3px solid var(--project-orange);outline-offset:4px}
+.project-directory-main{display:flex;flex:1;flex-direction:column;min-height:155px;width:100%;padding:16px;text-align:left;background:transparent;color:var(--project-ink);border:0;cursor:pointer}.project-directory-main:hover{background:var(--project-muted)}.project-directory-main:focus-visible{outline:2px solid var(--project-orange);outline-offset:-2px}
+.project-directory-actions{display:flex;gap:7px;padding:0 16px 16px}.project-directory-actions .project-button{flex:1;justify-content:center;min-width:0;padding:8px 8px;font-size:10px}.project-directory-actions .project-button svg{flex:none}
+.project-directory-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px}.project-directory-top>svg{color:var(--project-secondary)}
+.project-signature-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:6px;background:#e9f4ef;color:#246247;font-size:12px;font-weight:600}.is-unsigned .project-signature-badge{background:#fff2d9;color:#825409}
+.project-directory-name{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.project-directory-customer{font-size:12px;font-weight:400;line-height:1.5;color:var(--project-secondary);margin-top:6px;overflow-wrap:anywhere}
+.project-directory-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:auto;padding-top:24px;font-size:11px;color:var(--project-secondary)}
+.project-profile-status{display:flex;align-items:center;gap:12px;background:#e9f4ef;color:#246247;padding:14px;border-radius:9px}.project-profile-status.is-unsigned{background:#fff2d9;color:#825409}.project-profile-status strong{font-size:13px}.project-profile-status p{font-size:12px;margin-top:4px}.project-profile-form input[readonly]{background:var(--project-muted);font-weight:600}.project-profile-form .project-form-actions{flex-wrap:wrap}
+.dark .project-signature-badge,.dark .project-profile-status{background:#20382d;color:#9cd6b9}.dark .is-unsigned .project-signature-badge,.dark .project-profile-status.is-unsigned{background:#3d301b;color:#ebc786}
+@media(max-width:560px){.project-directory-grid{grid-template-columns:1fr}.project-directory-card{min-height:250px}.project-directory-top{margin-bottom:20px}.project-directory-actions{flex-direction:column}}
+
+/* Compact directory cards retain their width even when there is only one project. */
+.projects-module .project-directory-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:18px;align-items:stretch}
+.projects-module .project-directory-card{min-height:0;border-radius:14px;transition:border-color .15s,box-shadow .15s}
+.projects-module .project-directory-card:hover{transform:none;border-color:var(--project-secondary);box-shadow:0 5px 20px #00000010}
+.projects-module .project-directory-card:focus-within{outline:none}
+.project-directory-heading>div>p{font-size:12px;color:var(--project-secondary);margin-top:5px}
+.project-directory-filters{display:flex;gap:5px;flex-wrap:wrap}
+.project-directory-filters button{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--project-border);border-radius:8px;font-size:12px;color:var(--project-secondary)}
+.project-directory-filters button[aria-pressed=true]{background:var(--project-soft);color:var(--project-orange);border-color:var(--project-orange)}
+.project-directory-filters button span{font-size:11px;opacity:.85}
+.project-directory-card-header{display:flex;align-items:center;gap:10px;padding:18px 18px 0}
+.project-directory-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--project-muted);color:var(--project-secondary);margin-right:auto}
+.project-directory-delete{display:grid;place-items:center;min-width:32px;min-height:36px;border-radius:7px;color:var(--project-secondary)}
+.project-directory-delete:hover{color:#dc624f;background:var(--project-muted)}
+.projects-module .project-directory-main{flex:none;min-height:0;padding:16px 18px 10px}
+.projects-module .project-directory-main:hover{background:transparent}
+.projects-module .project-directory-name{font-size:20px;line-height:1.35}
+.projects-module .project-directory-customer{font-size:12px;line-height:1.6;margin-top:5px}
+.project-directory-location{display:flex;align-items:flex-start;gap:6px;color:var(--project-secondary);font-size:12px;line-height:1.5;padding:0 18px 16px}.project-directory-location svg{flex-shrink:0;margin-top:2px}
+.project-directory-facts{display:grid;grid-template-columns:1.5fr 1fr;gap:12px;margin:auto 18px 16px;padding:14px 0;border-top:1px solid var(--project-border)}
+.project-directory-facts dt{font-size:11px;color:var(--project-secondary);margin-bottom:6px}.project-directory-facts dd{font-size:17px;font-weight:500;margin:0;font-variant-numeric:tabular-nums;color:var(--project-ink)}
+.projects-module .project-directory-actions{padding:0 18px 18px;gap:8px}.projects-module .project-directory-actions .project-button{font-size:11px;padding:10px 8px;min-height:40px;line-height:1.4}
+.project-directory button:focus-visible{outline:2px solid var(--project-orange);outline-offset:2px}
+@media(max-width:560px){.projects-module .project-directory-actions{flex-direction:row}.project-directory-heading{align-items:flex-start;gap:14px}.project-directory-filters{width:100%}.project-directory-filters button{flex:1;justify-content:center}}

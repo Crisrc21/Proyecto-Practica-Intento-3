@@ -2,7 +2,9 @@ export type TipoCliente = "B2B" | "B2C";
 
 export type TipoDocumento =
   | "Factura Electrónica 33"
-  | "Factura Exenta Electrónica 34";
+  | "Factura Exenta Electrónica 34"
+  | "Nota de Crédito Electrónica 61"
+  | "Nota de Débito Electrónica 56";
 
 export type TipoDocumentoRelacionado =
   | "Nota de Crédito Electrónica 61"
@@ -17,12 +19,12 @@ export type CondicionPago =
   | "45 días"
   | "60 días";
 
-export type EstadoVencimiento = "Factura Vigente" | "Factura Vencida";
+export type EstadoVencimiento = "En plazo" | "Vencida";
 export type EstadoPago =
-  | "No Pagado"
-  | "Pagado Parcialmente"
-  | "Pagado Completamente";
-export type EstadoDocumental = "Vigente" | "Anulada";
+  | "No pagado"
+  | "Pago parcial"
+  | "Pagado";
+export type EstadoDocumental = "Activo" | "Anulado";
 
 export type MotivoNotaCredito =
   | "Anulación total"
@@ -90,6 +92,7 @@ export interface Factura {
   fechaVencimiento: string;
   condicionPago: CondicionPago;
   monto: number;
+  anulada?: boolean;
   observacion?: string;
   pagos: Pago[];
   notasCredito: NotaCredito[];
@@ -131,14 +134,14 @@ export interface KpisDashboard {
   carteraTotal: number;
   montoCobrado: number;
   montoPendiente: number;
-  pendienteVigente: number;
+  pendienteEnPlazo: number;
   pendienteVencido: number;
-  facturasVigentes: number;
+  facturasEnPlazo: number;
   facturasVencidas: number;
   facturasPagadasCompletamente: number;
   distribucionCartera: {
     cobrado: number;
-    pendienteVigente: number;
+    pendienteEnPlazo: number;
     pendienteVencido: number;
   };
   aging: {

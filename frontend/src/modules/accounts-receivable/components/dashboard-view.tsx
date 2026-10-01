@@ -1,25 +1,29 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AppLink as Link } from "@/shared/components/app-link";
+import { DocumentConditionsPanel } from "@/modules/accounts-receivable/components/document-conditions-panel";
+import { DocumentDateFilter } from "@/modules/accounts-receivable/components/document-date-filter";
 import { DocumentFolio } from "@/modules/accounts-receivable/components/document-folio";
 import {
-  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   Banknote,
-  BarChart3,
   CalendarClock,
   CheckCircle2,
   FileClock,
-  Gauge,
   HandCoins,
-  LineChart,
-  ShieldAlert,
-  Sparkles,
   Target,
-  WalletCards
+  WalletCards,
+  X
 } from "lucide-react";
+import { calcularKpisDesdeFacturasCalculadas } from "@/modules/accounts-receivable/data/cxc-calculations";
+import {
+  defaultDocumentDateRangeFilter,
+  documentDateFilterToSearchParams,
+  filterFacturasByDateRange,
+  isDocumentDateRangeActive
+} from "@/modules/accounts-receivable/data/date-filters";
 import { formatearFolioDocumento } from "@/modules/accounts-receivable/data/document-ids";
 import { formatCurrency, formatDate } from "@/shared/lib/formatters";
 import { FacturaCalculada, KpisDashboard } from "@/modules/accounts-receivable/types";
@@ -48,20 +52,42 @@ export function DashboardView({
   kpis: KpisDashboard;
   facturas: FacturaCalculada[];
 }) {
-  const [focus, setFocus] = useState<"flujo" | "estado" | "historico">("flujo");
-  const [activeChartKey, setActiveChartKey] = useState<string | null>(null);
   const [activeCashKey, setActiveCashKey] = useState<"cobrado" | "pendiente">("cobrado");
-  const [activePaymentKey, setActivePaymentKey] = useState<"cobrado" | "vigente" | "vencido">("vencido");
+  const [activePaymentKey, setActivePaymentKey] = useState<"cobrado" | "en-plazo" | "vencido">("vencido");
   const [activeTrendKey, setActiveTrendKey] = useState<string | null>(null);
   const [activeAgingKey, setActiveAgingKey] = useState<string | null>(null);
-  const [mapStartDate, setMapStartDate] = useState("2026-01-01");
-  const [mapEndDate, setMapEndDate] = useState("2026-06-30");
-  const recovery = Math.round((kpis.montoCobrado / Math.max(kpis.carteraTotal, 1)) * 100);
-  const mora = Math.round((kpis.pendienteVencido / Math.max(kpis.montoPendiente, 1)) * 100);
-  const partialCount = facturas.filter((factura) => factura.estadoPago === "Pagado Parcialmente").length;
-  const upcomingCount = facturas.filter(
-    (factura) => factura.estadoVencimiento === "Factura Vigente" && factura.saldoPendiente > 0
+  const [selectedAgingKey, setSelectedAgingKey] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState(defaultDocumentDateRangeFilter);
+  const dashboardFacturas = useMemo(
+    () => filterFacturasByDateRange(facturas, dateFilter),
+    [dateFilter, facturas]
+  );
+  const dashboardKpis = useMemo(
+    () => calcularKpisDesdeFacturasCalculadas(dashboardFacturas),
+    [dashboardFacturas]
+  );
+  const partialCount = dashboardFacturas.filter((factura) => factura.estadoPago === "Pago parcial").length;
+  const upcomingCount = dashboardFacturas.filter(
+    (factura) => factura.estadoVencimiento === "En plazo" && factura.saldoPendiente > 0
   ).length;
+  const activeDashboardConditions = isDocumentDateRangeActive(dateFilter) ? 1 : 0;
+
+  function facturasHref(filtro?: string, busqueda?: string) {
+    const params = new URLSearchParams();
+
+    if (filtro) {
+      params.set("filtro", filtro);
+    }
+
+    if (busqueda) {
+      params.set("busqueda", busqueda);
+    }
+
+    documentDateFilterToSearchParams(params, dateFilter);
+
+    const queryString = params.toString();
+    return queryString ? `/facturas?${queryString}` : "/facturas";
+  }
 
   const kpiGroups = [
     {
@@ -71,40 +97,37 @@ export function DashboardView({
           key: "cartera-total",
           label: "Cartera Total",
           icon: WalletCards,
-          accent: "from-orange-500 to-amber-400",
           tone: "border-stone-200 bg-white text-orange-600 shadow-sm dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300",
           chip: "+12.4%",
           caption: "Base activa",
           positive: true,
-          value: kpis.carteraTotal,
+          value: dashboardKpis.carteraTotal,
           isMoney: true,
-          href: "/facturas"
+          href: facturasHref()
         },
         {
           key: "monto-cobrado",
           label: "Monto Cobrado",
           icon: Banknote,
-          accent: "from-emerald-500 to-emerald-300",
           tone: "border-stone-200 bg-white text-emerald-600 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
           chip: "+18.7%",
           caption: "Cash-in",
           positive: true,
-          value: kpis.montoCobrado,
+          value: dashboardKpis.montoCobrado,
           isMoney: true,
-          href: "/facturas?filtro=Pagadas%20total"
+          href: facturasHref("Pagadas")
         },
         {
           key: "monto-pendiente",
           label: "Monto Pendiente",
           icon: CalendarClock,
-          accent: "from-orange-500 to-amber-300",
           tone: "border-stone-200 bg-white text-orange-600 shadow-sm dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300",
           chip: "-4.2%",
           caption: "Por gestionar",
           positive: false,
-          value: kpis.montoPendiente,
+          value: dashboardKpis.montoPendiente,
           isMoney: true,
-          href: "/facturas?filtro=Pendientes"
+          href: facturasHref("Pendientes")
         }
       ]
     },
@@ -115,70 +138,59 @@ export function DashboardView({
           key: "facturas-pagadas",
           label: "Facturas Pagadas",
           icon: CheckCircle2,
-          accent: "from-emerald-500 to-emerald-300",
           tone: "border-stone-200 bg-white text-emerald-600 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300",
           chip: "+8.1%",
           caption: "Liquidadas",
           positive: true,
-          value: kpis.facturasPagadasCompletamente,
+          value: dashboardKpis.facturasPagadasCompletamente,
           isMoney: false,
-          href: "/facturas?filtro=Pagadas%20total"
+          href: facturasHref("Pagadas")
         },
         {
           key: "facturas-parciales",
           label: "Facturas con Pagos Parciales",
           icon: HandCoins,
-          accent: "from-amber-400 to-orange-300",
           tone: "border-stone-200 bg-white text-amber-700 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
           chip: `${partialCount} docs`,
           caption: "Con abonos",
           positive: true,
           value: partialCount,
           isMoney: false,
-          href: "/facturas?filtro=Pagadas%20parcial"
+          href: facturasHref("Pago parcial")
         },
         {
           key: "facturas-por-vencer",
           label: "Facturas Por Vencer",
           icon: FileClock,
-          accent: "from-violet-500 to-violet-300",
-          tone: "border-stone-200 bg-white text-violet-600 shadow-sm dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300",
+          tone: "border-stone-200 bg-white text-amber-600 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300",
           chip: `${upcomingCount} docs`,
           caption: "Próximos cobros",
           positive: true,
           value: upcomingCount,
           isMoney: false,
-          href: "/facturas?filtro=Por%20vencer"
+          href: facturasHref("Por vencer")
         }
       ]
     }
   ];
 
-  const mapFacturas = useMemo(
-    () =>
-      facturas.filter(
-        (factura) =>
-          factura.fechaEmision >= mapStartDate &&
-          factura.fechaEmision <= mapEndDate
-      ),
-    [facturas, mapEndDate, mapStartDate]
-  );
+  const mapFacturas = dashboardFacturas;
 
   const mapKpis = useMemo(() => {
     const montoCobrado = mapFacturas.reduce((total, factura) => total + factura.montoCobrado, 0);
     const montoPendiente = mapFacturas.reduce((total, factura) => total + factura.saldoPendiente, 0);
-    const pendienteVigente = mapFacturas
-      .filter((factura) => factura.estadoVencimiento === "Factura Vigente")
+    const pendienteEnPlazo = mapFacturas
+      .filter((factura) => factura.estadoVencimiento === "En plazo")
       .reduce((total, factura) => total + factura.saldoPendiente, 0);
     const pendienteVencido = mapFacturas
-      .filter((factura) => factura.estadoVencimiento === "Factura Vencida")
+      .filter((factura) => factura.estadoVencimiento === "Vencida")
       .reduce((total, factura) => total + factura.saldoPendiente, 0);
 
     return {
       carteraTotal: montoCobrado + montoPendiente,
       montoCobrado,
       montoPendiente,
-      pendienteVigente,
+      pendienteEnPlazo,
       pendienteVencido
     };
   }, [mapFacturas]);
@@ -200,10 +212,10 @@ export function DashboardView({
     return {
       cobradoEnPlazo,
       cobradoFueraPlazo,
-      pendienteEnPlazo: mapKpis.pendienteVigente,
+      pendienteEnPlazo: mapKpis.pendienteEnPlazo,
       pendienteFueraPlazo: mapKpis.pendienteVencido
     };
-  }, [mapFacturas, mapKpis.pendienteVencido, mapKpis.pendienteVigente]);
+  }, [mapFacturas, mapKpis.pendienteVencido, mapKpis.pendienteEnPlazo]);
 
   const cashBars = [
     {
@@ -256,8 +268,8 @@ export function DashboardView({
   const totalCashTicks = [1, 0.75, 0.5, 0.25, 0].map((ratio) => Math.round(mapKpis.carteraTotal * ratio));
   const cashStory =
     mapKpis.montoCobrado >= mapKpis.montoPendiente
-      ? `${formatCurrency(cashQuality.cobradoEnPlazo)} se recuperó en plazo; revisar ${formatCurrency(cashQuality.cobradoFueraPlazo)} cobrados fuera de plazo.`
-      : `${formatCurrency(cashQuality.pendienteFueraPlazo)} está fuera de plazo; el pendiente supera lo cobrado y requiere foco de gestión.`;
+      ? `Revisar ${formatCurrency(cashQuality.cobradoFueraPlazo)} cobrados fuera de plazo.`
+      : `Foco en ${formatCurrency(cashQuality.pendienteFueraPlazo)} fuera de plazo.`;
 
   const paymentStates = useMemo(
     () => [
@@ -268,28 +280,28 @@ export function DashboardView({
         count: mapFacturas.filter((factura) => factura.montoCobrado > 0).length,
         color: "#10b981",
         caption: "recuperado",
-        href: "/facturas"
+        href: facturasHref()
       },
       {
-        key: "vigente" as const,
-        label: "Vigente",
-        value: mapKpis.pendienteVigente,
-        count: mapFacturas.filter((factura) => factura.estadoVencimiento === "Factura Vigente" && factura.saldoPendiente > 0).length,
+        key: "en-plazo" as const,
+        label: "En plazo",
+        value: mapKpis.pendienteEnPlazo,
+        count: mapFacturas.filter((factura) => factura.estadoVencimiento === "En plazo" && factura.saldoPendiente > 0).length,
         color: "#f97316",
         caption: "por cobrar",
-        href: "/facturas?filtro=Por%20vencer"
+        href: facturasHref("Por vencer")
       },
       {
         key: "vencido" as const,
         label: "Vencido",
         value: mapKpis.pendienteVencido,
-        count: mapFacturas.filter((factura) => factura.estadoVencimiento === "Factura Vencida" && factura.saldoPendiente > 0).length,
+        count: mapFacturas.filter((factura) => factura.estadoVencimiento === "Vencida" && factura.saldoPendiente > 0).length,
         color: "#e11d48",
         caption: "acción prioritaria",
-        href: "/facturas?filtro=Vencidas"
+        href: facturasHref("Vencidas")
       }
     ],
-    [mapFacturas, mapKpis.montoCobrado, mapKpis.pendienteVencido, mapKpis.pendienteVigente]
+    [dateFilter, mapFacturas, mapKpis.montoCobrado, mapKpis.pendienteVencido, mapKpis.pendienteEnPlazo]
   );
   const pieBackground = useMemo(() => {
     let cursor = 0;
@@ -403,11 +415,10 @@ export function DashboardView({
             <motion.div
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -4 }}
+              whileHover={{ y: -2 }}
               transition={{ delay: (groupIndex * 3 + index) * 0.04 }}
-              className="overflow-hidden rounded-xl border border-stone-200 bg-white text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_14px_30px_rgba(15,23,42,0.09)] dark:border-stone-700 dark:bg-[#151515] dark:text-white"
+              className="overflow-hidden rounded-xl border border-stone-200/90 bg-white text-stone-950 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition-[border-color,box-shadow,transform] hover:border-stone-300 hover:shadow-[0_8px_20px_rgba(15,23,42,0.07)] dark:border-stone-700 dark:bg-[#151515] dark:text-white dark:hover:border-stone-600"
             >
-              <div className={`h-1 bg-gradient-to-r ${card.accent}`} />
               <div className="relative p-4">
                 <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-stone-50/80 to-transparent dark:from-white/[0.025]" />
                 <div className="relative flex items-start justify-between gap-3">
@@ -460,7 +471,7 @@ export function DashboardView({
       }
     >();
 
-    facturas.forEach((factura) => {
+    dashboardFacturas.forEach((factura) => {
       const current =
         grouped.get(factura.cliente.id) ??
         {
@@ -473,9 +484,9 @@ export function DashboardView({
         };
 
       current.total += 1;
-      current.pagadas += factura.estadoPago === "Pagado Completamente" ? 1 : 0;
-      current.vencidas += factura.estadoVencimiento === "Factura Vencida" && factura.saldoPendiente > 0 ? 1 : 0;
-      current.saldoVencido += factura.estadoVencimiento === "Factura Vencida" ? factura.saldoPendiente : 0;
+      current.pagadas += factura.estadoPago === "Pagado" ? 1 : 0;
+      current.vencidas += factura.estadoVencimiento === "Vencida" && factura.saldoPendiente > 0 ? 1 : 0;
+      current.saldoVencido += factura.estadoVencimiento === "Vencida" ? factura.saldoPendiente : 0;
       current.dias += factura.diasVencidos;
       grouped.set(factura.cliente.id, current);
     });
@@ -490,7 +501,7 @@ export function DashboardView({
       cumplidores: [...values].sort((a, b) => b.puntualidad - a.puntualidad).slice(0, 4),
       morosos: [...values].sort((a, b) => b.saldoVencido - a.saldoVencido).slice(0, 4)
     };
-  }, [facturas]);
+  }, [dashboardFacturas]);
 
   const agingBuckets = useMemo(() => {
     const buckets = [
@@ -533,404 +544,108 @@ export function DashboardView({
     ];
 
     return buckets.map((bucket) => {
-      const bucketFacturas = facturas.filter(
+      const bucketFacturas = dashboardFacturas.filter(
         (factura) =>
           factura.saldoPendiente > 0 &&
-          factura.estadoVencimiento === "Factura Vencida" &&
+          factura.estadoVencimiento === "Vencida" &&
           factura.diasVencidos >= bucket.min &&
           factura.diasVencidos <= bucket.max
       );
       return {
         ...bucket,
         count: bucketFacturas.length,
-        monto: bucketFacturas.reduce((total, factura) => total + factura.saldoPendiente, 0)
+        monto: bucketFacturas.reduce((total, factura) => total + factura.saldoPendiente, 0),
+        facturas: bucketFacturas.sort((a, b) => b.diasVencidos - a.diasVencidos || b.saldoPendiente - a.saldoPendiente)
       };
     });
-  }, [facturas]);
+  }, [dashboardFacturas]);
 
   const acciones = useMemo(
     () =>
-      [...facturas]
+      [...dashboardFacturas]
         .filter((factura) => factura.saldoPendiente > 0)
         .sort((a, b) => b.diasVencidos - a.diasVencidos || b.saldoPendiente - a.saldoPendiente)
         .slice(0, 5),
-    [facturas]
+    [dashboardFacturas]
   );
+
 
   const maxBucket = Math.max(...agingBuckets.map((bucket) => bucket.monto), 1);
   const activeAgingBucket =
     agingBuckets.find((bucket) => bucket.label === activeAgingKey) ??
     agingBuckets.reduce((selected, bucket) => (bucket.monto > selected.monto ? bucket : selected), agingBuckets[0]);
-  const chartData = useMemo(() => {
-    if (focus === "estado") {
-      return [
-        {
-          key: "pagado",
-          label: "Pagado",
-          subLabel: "Completamente",
-          value: mapFacturas
-            .filter((factura) => factura.estadoPago === "Pagado Completamente")
-            .reduce((total, factura) => total + factura.montoAjustado, 0),
-          count: mapFacturas.filter((factura) => factura.estadoPago === "Pagado Completamente").length,
-          level: "Saludable",
-          color: "from-emerald-300 to-emerald-500 dark:from-emerald-700 dark:to-emerald-500"
-        },
-        {
-          key: "parcial",
-          label: "Parcial",
-          subLabel: "En avance",
-          value: mapFacturas
-            .filter((factura) => factura.estadoPago === "Pagado Parcialmente")
-            .reduce((total, factura) => total + factura.montoAjustado, 0),
-          count: mapFacturas.filter((factura) => factura.estadoPago === "Pagado Parcialmente").length,
-          level: "Gestionable",
-          color: "from-amber-300 to-orange-500 dark:from-amber-700 dark:to-orange-500"
-        },
-        {
-          key: "nopagado",
-          label: "No pagado",
-          subLabel: "Sin avance",
-          value: mapFacturas
-            .filter((factura) => factura.estadoPago === "No Pagado")
-            .reduce((total, factura) => total + factura.montoAjustado, 0),
-          count: mapFacturas.filter((factura) => factura.estadoPago === "No Pagado").length,
-          level: "Prioritario",
-          color: "from-rose-300 to-red-500 dark:from-rose-800 dark:to-red-600"
-        }
-      ];
+  const selectedAgingBucket = agingBuckets.find((bucket) => bucket.label === selectedAgingKey) ?? null;
+
+  useEffect(() => {
+    if (!selectedAgingBucket) {
+      return;
     }
 
-    if (focus === "flujo") {
-      return [
-        {
-          key: "cobrado",
-          label: "Cobrado",
-          subLabel: "Cash-in",
-          value: mapKpis.montoCobrado,
-          count: mapFacturas.filter((factura) => factura.montoCobrado > 0).length,
-          level: "Entrada",
-          color: "from-emerald-300 to-emerald-500 dark:from-emerald-700 dark:to-emerald-500"
-        },
-        {
-          key: "vigente",
-          label: "Pendiente",
-          subLabel: "Vigente",
-          value: mapKpis.pendienteVigente,
-          count: mapFacturas.filter(
-            (factura) =>
-              factura.estadoVencimiento === "Factura Vigente" && factura.saldoPendiente > 0
-          ).length,
-          level: "Por cobrar",
-          color: "from-amber-200 to-orange-400 dark:from-amber-700 dark:to-orange-500"
-        },
-        {
-          key: "vencido",
-          label: "Pendiente",
-          subLabel: "Vencido",
-          value: mapKpis.pendienteVencido,
-          count: mapFacturas.filter(
-            (factura) =>
-              factura.estadoVencimiento === "Factura Vencida" && factura.saldoPendiente > 0
-          ).length,
-          level: "Riesgo",
-          color: "from-rose-300 to-red-500 dark:from-rose-800 dark:to-red-600"
-        }
-      ];
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedAgingKey(null);
+      }
     }
 
-    if (focus === "historico") {
-      const grouped = new Map<string, { label: string; value: number; count: number }>();
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-      mapFacturas.forEach((factura) => {
-        const date = new Date(`${factura.fechaEmision}T00:00:00`);
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        const label = new Intl.DateTimeFormat("es-CL", {
-          month: "short",
-          year: "2-digit"
-        }).format(date);
-        const current = grouped.get(key) ?? { label, value: 0, count: 0 };
-        current.value += factura.montoAjustado;
-        current.count += 1;
-        grouped.set(key, current);
-      });
-
-      return [...grouped.entries()]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item], index) => ({
-          key,
-          label: item.label,
-          subLabel: "Emisión",
-          value: item.value,
-          count: item.count,
-          level: index === grouped.size - 1 ? "Actual" : "Histórico",
-          color:
-            index === grouped.size - 1
-              ? "from-orange-300 to-orange-500 dark:from-orange-700 dark:to-orange-500"
-              : "from-stone-200 to-stone-400 dark:from-stone-700 dark:to-stone-500"
-        }));
-    }
-
-    return agingBuckets.map((bucket, index) => ({
-      key: bucket.label,
-      label: bucket.label,
-      subLabel: ["Bajo", "Medio", "Alto", "Crítico"][index],
-      value: bucket.monto,
-      count: bucket.count,
-      level: ["Saludable", "Atención", "Gestión", "Urgente"][index],
-      color:
-        [
-          "from-emerald-200 to-emerald-400 dark:from-emerald-800 dark:to-emerald-500",
-          "from-amber-200 to-amber-400 dark:from-amber-800 dark:to-amber-500",
-          "from-orange-200 to-orange-500 dark:from-orange-800 dark:to-orange-500",
-          "from-rose-300 to-red-500 dark:from-rose-900 dark:to-red-600"
-        ][index] ?? bucket.color
-    }));
-  }, [agingBuckets, focus, mapFacturas, mapKpis.montoCobrado, mapKpis.pendienteVencido, mapKpis.pendienteVigente]);
-  const maxChartValue = Math.max(...chartData.map((item) => item.value), 1);
-  const activeChartItem = chartData.find((item) => item.key === activeChartKey) ?? chartData[0];
-  const focusDescription = {
-    estado: "Divide la cartera total entre cobrado, pendiente vigente y pendiente vencido.",
-    flujo: "Separa efectivo cobrado, pendiente vigente y pendiente vencido.",
-    historico: "Ordena la cartera por periodo de emisión para leer evolución."
-  }[focus];
-
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedAgingBucket]);
   return (
     <div className="space-y-4">
-      <motion.section
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 text-stone-950 shadow-[0_14px_32px_rgba(15,23,42,0.08)] dark:border-stone-700 dark:bg-[#171717] dark:text-white"
-      >
-        <div className="pho-hero-texture absolute inset-0 opacity-70" />
-        <div className="absolute inset-y-0 left-0 w-1.5 bg-orange-500" />
-        <div className="relative grid gap-5 xl:grid-cols-[1fr_360px]">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-orange-600 shadow-sm dark:border-stone-700 dark:bg-black/30 dark:text-orange-400">
-              <Sparkles className="size-4" aria-hidden="true" />
-              CxC PHO command center
-            </div>
-            <h1 className="mt-4 max-w-4xl text-3xl font-semibold tracking-tight sm:text-4xl sm:leading-tight">
-              Cartera, cobranza y trazabilidad en una sola lectura.
-            </h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-stone-600 dark:text-stone-300">
-              Un tablero vivo para entender qué cobrar, cuándo actuar y qué documentos explican cada movimiento.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {[
-                { label: "Cartera", icon: Gauge },
-                { label: "Cobranza", icon: Target },
-                { label: "Riesgo", icon: ShieldAlert }
-              ].map((item, index) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.label}
-                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-semibold transition ${
-                      index === 0
-                        ? "border-orange-500 bg-orange-500 text-white"
-                        : "border-stone-200 bg-white/70 text-stone-600 hover:border-orange-300 hover:text-stone-950 dark:border-stone-700 dark:bg-black/20 dark:text-stone-300 dark:hover:border-orange-500/60 dark:hover:text-white"
-                    }`}
-                  >
-                    <Icon className="size-4" aria-hidden="true" />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-stone-200 bg-white/85 p-4 shadow-sm backdrop-blur dark:border-stone-700 dark:bg-stone-950/90 dark:shadow-black/30">
-            <div className="flex items-start gap-4">
-              <div className="flex size-14 items-center justify-center rounded-lg border border-stone-200 bg-white text-orange-600 shadow-sm dark:border-orange-500/35 dark:bg-orange-500/15 dark:text-orange-300">
-                <Gauge className="size-6" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-sm text-stone-500 dark:text-stone-400">Foco activo</p>
-                <h2 className="text-xl font-semibold text-stone-950 dark:text-white">Visión de salud financiera</h2>
-              </div>
-            </div>
-            <p className="mt-6 leading-7 text-stone-600 dark:text-stone-300">
-              Cruza saldo, documentos y velocidad de cobro para priorizar la cartera completa.
-            </p>
-            <div className="mt-7 grid grid-cols-2 gap-3">
-              <div className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900/80">
-                <p className="text-sm text-stone-500 dark:text-stone-400">Cobrado</p>
-                <p className="mt-2 text-3xl font-semibold text-emerald-600 dark:text-emerald-400">{recovery}%</p>
-              </div>
-              <div className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900/80">
-                <p className="text-sm text-stone-500 dark:text-stone-400">Presión mora</p>
-                <p className="mt-2 text-3xl font-semibold text-rose-600 dark:text-rose-400">{mora}%</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.section>
-
-      <div className="overflow-hidden rounded-xl border border-stone-200 bg-white py-3 text-stone-600 shadow-[0_12px_26px_rgba(15,23,42,0.07)] dark:border-stone-700 dark:bg-[#111111] dark:text-stone-300">
-        <motion.div
-          className="flex min-w-max gap-10 px-4 text-sm"
-          animate={{ x: ["0%", "-35%"] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-        >
-          {[
-            {
-              label: "Pago parcial",
-              prefix: "Factura 2976 registra abono y vence en",
-              metric: "3 días",
-              suffix: "",
-              tone: "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-950/45 dark:text-amber-300 dark:ring-amber-800",
-              accent: "text-amber-700 dark:text-amber-300"
-            },
-            {
-              label: "Retraso",
-              prefix: "Cliente Clínica Andes SpA posee",
-              metric: "105 días",
-              suffix: "de atraso",
-              tone: "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-950/45 dark:text-rose-300 dark:ring-rose-800",
-              accent: "text-rose-700 dark:text-rose-300"
-            },
-            {
-              label: "Pago",
-              prefix: "Cliente María Fernanda Ruiz posee",
-              metric: "95%",
-              suffix: "de pagos puntuales",
-              tone: "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/45 dark:text-emerald-300 dark:ring-emerald-800",
-              accent: "text-emerald-700 dark:text-emerald-300"
-            },
-            {
-              label: "Pago",
-              prefix: "Factura 3010 fue pagada en fecha",
-              metric: "",
-              suffix: "",
-              tone: "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/45 dark:text-emerald-300 dark:ring-emerald-800",
-              accent: "text-emerald-700 dark:text-emerald-300"
-            }
-          ].map((alert) => (
-            <span key={`${alert.label}-${alert.prefix}`} className="flex items-stretch overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm dark:border-stone-700 dark:bg-black/35">
-              <span className={`flex items-center px-3 text-xs font-semibold ring-1 ${alert.tone}`}>
-                {alert.label}
-              </span>
-              <span className="px-3 py-1">
-                {alert.prefix}
-                {alert.metric ? (
-                  <>
-                    {" "}
-                    <strong className={`font-semibold ${alert.accent}`}>{alert.metric}</strong>
-                  </>
-                ) : null}
-                {alert.suffix ? ` ${alert.suffix}` : ""}
-              </span>
-            </span>
-          ))}
-        </motion.div>
-      </div>
-
       <section className="space-y-3">{renderKpiGroup(kpiGroups[0], 0)}</section>
 
       <section className="space-y-3">{renderKpiGroup(kpiGroups[1], 1)}</section>
 
-      <section className="relative space-y-4 overflow-hidden rounded-2xl border border-orange-100 bg-orange-50/35 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-orange-500/20 dark:bg-orange-500/[0.04]">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-500 via-amber-300 to-transparent" />
+      <DocumentConditionsPanel
+        totalCount={facturas.length}
+        filteredCount={dashboardFacturas.length}
+        activeCount={activeDashboardConditions}
+        description="Actualiza KPIs y graficos del dashboard segun emision o vencimiento."
+        onClear={() => setDateFilter(defaultDocumentDateRangeFilter)}
+      >
+        <DocumentDateFilter
+          value={dateFilter}
+          onChange={setDateFilter}
+          totalCount={facturas.length}
+          filteredCount={dashboardFacturas.length}
+          description="Define si el tablero se lee por fecha de emision o de vencimiento."
+        />
+      </DocumentConditionsPanel>
+
+      <section className="relative space-y-4 overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-stone-700 dark:bg-[#151515]">
         <div className="relative flex items-center gap-3">
-          <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-orange-600 shadow-sm ring-1 ring-orange-200 dark:bg-black/35 dark:text-orange-300 dark:ring-orange-500/30">
-            01 · Cobranza
+          <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-stone-600 shadow-sm ring-1 ring-stone-200 dark:bg-black/35 dark:text-stone-300 dark:ring-stone-700">
+            Cobranza
           </span>
           <div>
             <h2 className="text-lg font-semibold">Lectura financiera y mora</h2>
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              Mapa financiero, pulso de cobranza y tramos de vencimiento para priorizar gestión.
-            </p>
           </div>
         </div>
-        <div className="space-y-5">
-        <div className={darkPanelClass("p-4")}>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-            <div className="max-w-xl">
-              <h2 className="text-lg font-semibold">Mapa financiero interactivo</h2>
-              <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                Cambia el lente para leer flujo, estado o histórico de cartera.
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-stone-700 dark:bg-black/45">
-              {[
-                { key: "flujo", label: "Flujo", icon: BarChart3 },
-                { key: "estado", label: "Estado", icon: Activity },
-                { key: "historico", label: "Histórico", icon: LineChart }
-              ].map((item) => {
-                const Icon = item.icon;
-
-                return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setFocus(item.key as typeof focus)}
-                  className={`inline-flex min-w-24 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-semibold transition ${
-                    focus === item.key
-                      ? "bg-orange-500 text-white shadow-sm"
-                      : "text-stone-500 hover:text-stone-950 dark:text-stone-400 dark:hover:text-white"
-                  }`}
-                >
-                  <Icon className="size-4" aria-hidden="true" />
-                  {item.label}
-                </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-2.5 dark:border-stone-700 dark:bg-black/35">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">Periodo de lectura</p>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  Filtra el mapa por fecha de emisión del documento.
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
-                  Desde
-                  <input
-                    type="date"
-                    value={mapStartDate}
-                    max={mapEndDate}
-                    onChange={(event) => setMapStartDate(event.target.value)}
-                    className="min-w-36 bg-transparent font-semibold text-stone-950 outline-none dark:text-white"
-                  />
-                  <CalendarClock className="size-4 text-stone-400" aria-hidden="true" />
-                </label>
-                <label className="inline-flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-500 shadow-sm dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
-                  Hasta
-                  <input
-                    type="date"
-                    value={mapEndDate}
-                    min={mapStartDate}
-                    onChange={(event) => setMapEndDate(event.target.value)}
-                    className="min-w-36 bg-transparent font-semibold text-stone-950 outline-none dark:text-white"
-                  />
-                  <CalendarClock className="size-4 text-stone-400" aria-hidden="true" />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-4">
-            {focus === "flujo" && (
+        <div className="space-y-10">
+        <div className="space-y-10 border-t border-stone-200 pt-5 dark:border-stone-700">
+          <div className="space-y-10">
             <motion.div
               key="flujo-chart"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-black/35"
+              className="space-y-4"
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="font-semibold">Monto cobrado vs pendiente</h3>
+                  <h3 className="font-semibold">Cobrado vs pendiente</h3>
                   <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
                     {cashStory}
                   </p>
                 </div>
-                <div className="rounded-lg border border-stone-200 bg-white px-3 py-2 shadow-sm dark:border-stone-800 dark:bg-stone-950">
+                <div className="border-l border-stone-200 px-3 py-1 dark:border-stone-700">
                   <p className="text-xs uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
-                    Lectura activa
+                    {activeCashBar.caption}
                   </p>
                   <p className={`mt-1 number-tabular text-lg font-semibold ${activeCashBar.text}`}>
                     {formatCurrency(activeCashBar.value)}
@@ -939,12 +654,8 @@ export function DashboardView({
               </div>
 
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_280px]">
-                <div className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-950">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">
-                      Comparación por calidad del flujo
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-xs text-stone-500 dark:text-stone-400">
+                <div className="p-1">
+                  <div className="flex flex-wrap justify-end gap-2 text-xs text-stone-500 dark:text-stone-400">
                       {[
                         ["Cobrado en plazo", "bg-emerald-500"],
                         ["Cobrado fuera plazo", "bg-emerald-800"],
@@ -956,7 +667,6 @@ export function DashboardView({
                           {label}
                         </span>
                       ))}
-                    </div>
                   </div>
                   <div className="mt-5 grid h-64 grid-cols-[72px_1fr] gap-3">
                     <div className="flex flex-col justify-between py-3 text-right text-xs text-stone-500 dark:text-stone-400">
@@ -1078,19 +788,16 @@ export function DashboardView({
                 </div>
               </div>
             </motion.div>
-            )}
 
-            {focus === "estado" && (
             <motion.div
               key="estado-chart"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-black/35"
+              className="space-y-4 border-t border-stone-200/80 pt-8 dark:border-stone-700/80"
             >
-              <h3 className="font-semibold">Composición de la cartera total</h3>
+              <h3 className="font-semibold">Composición de cartera</h3>
               <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                Segmenta la cartera en cobrado, pendiente vigente y pendiente vencido. Foco actual: {dominantPaymentState.label} concentra{" "}
-                {Math.round((dominantPaymentState.value / Math.max(mapKpis.carteraTotal, 1)) * 100)}% de la cartera.
+                Foco: {dominantPaymentState.label} concentra {Math.round((dominantPaymentState.value / Math.max(mapKpis.carteraTotal, 1)) * 100)}%.
               </p>
               <div className="mt-4 grid gap-4 lg:grid-cols-[190px_1fr] lg:items-center">
                 <button
@@ -1152,21 +859,16 @@ export function DashboardView({
                 </div>
               </div>
             </motion.div>
-            )}
 
-          {focus === "historico" && (
           <motion.div
             key="historico-chart"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-black/35"
+            className="space-y-4 border-t border-stone-200/80 pt-8 dark:border-stone-700/80"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-semibold">Tendencia financiera mensual</h3>
-                <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-                  Área de facturación versus ingreso para detectar brechas mensuales.
-                </p>
+                <h3 className="font-semibold">Tendencia mensual</h3>
               </div>
               <div className="grid gap-2 text-right">
                 <p className="number-tabular text-lg font-semibold text-emerald-600 dark:text-emerald-400">
@@ -1177,23 +879,18 @@ export function DashboardView({
                 </p>
               </div>
             </div>
-              <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3 dark:border-stone-800 dark:bg-stone-950">
+              <div className="mt-4 border-t border-stone-200 pt-3 dark:border-stone-700">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-2 rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
                     <span className="size-2.5 rounded-full bg-orange-500" />
-                    Histórico facturado
+                    Facturado
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">
                     <span className="size-2.5 rounded-full bg-emerald-500" />
-                    Histórico ingresado
+                    Ingresado
                   </span>
                 </div>
-                <span className="rounded-md border border-stone-200 bg-white px-2.5 py-1.5 text-xs text-stone-500 dark:border-stone-800 dark:bg-stone-900">
-                  {activeTrend
-                    ? `${activeTrend.label}: facturado ${compactCurrency(activeTrend.facturado)} · ingresado ${compactCurrency(activeTrend.ingresado)}`
-                    : "Facturado por emisión · ingresado por fecha de pago"}
-                </span>
               </div>
               <svg viewBox="0 0 1320 180" className="h-56 w-full overflow-visible">
                 <defs>
@@ -1404,96 +1101,7 @@ export function DashboardView({
               </div>
             </div>
           </motion.div>
-          )}
 
-        </div>
-        </div>
-
-        <div className={darkPanelClass("relative overflow-hidden p-4")}>
-          <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
-          <div className="relative space-y-3">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <h2 className="text-lg font-semibold">Pulso de cobranza</h2>
-              <p className="text-sm text-stone-500 dark:text-stone-400">
-                Señales rápidas para medir recuperación, mora y cierres pendientes.
-              </p>
-            </div>
-            <div className="grid gap-3 xl:grid-cols-[240px_1fr]">
-              <div className="flex min-h-36 items-center justify-between gap-4 rounded-lg border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-700 dark:bg-black/45 xl:flex-col xl:justify-center">
-                <div className="flex size-28 shrink-0 flex-col items-center justify-center rounded-xl border border-orange-500/45">
-                  <p className="text-xs text-stone-500 dark:text-stone-400">recuperación</p>
-                  <p className="mt-1 text-4xl font-semibold">{recovery}%</p>
-                  <div className="mt-3 h-2 w-20 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
-                    <motion.div
-                      className="h-full rounded-full bg-orange-500"
-                      initial={{ width: 0 }}
-                      animate={{ width: progressWidth(recovery) }}
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0 text-right xl:text-center">
-                  <p className="text-xs uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">lectura</p>
-                  <p className="mt-1 text-sm font-semibold text-stone-950 dark:text-white">
-                    {recovery >= 50 ? "Cobranza saludable" : "Requiere foco de gestión"}
-                  </p>
-                  <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                    {formatCurrency(kpis.montoCobrado)} recuperados
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  label: "Eficiencia de cobro",
-                  value: `${recovery}%`,
-                  detail: `${formatCurrency(kpis.montoCobrado)} recuperados sobre cartera activa.`,
-                  color: "text-emerald-500",
-                  bar: "bg-emerald-500",
-                  progress: recovery
-                },
-                {
-                  label: "Mora sobre pendiente",
-                  value: `${mora}%`,
-                  detail: "Indica cuánto del saldo requiere gestión prioritaria.",
-                  color: "text-rose-500",
-                  bar: "bg-rose-500",
-                  progress: mora
-                },
-                {
-                  label: "Pagos parciales",
-                  value: `${partialCount}`,
-                  detail: "Documentos con avance de pago que pueden cerrarse pronto.",
-                  color: "text-orange-500",
-                  bar: "bg-orange-500",
-                  progress: Math.min(partialCount * 25, 100)
-                },
-                {
-                  label: "Reemplazos documentales",
-                  value: `${facturas.filter((factura) => factura.documentosRelacionados?.length).length}`,
-                  detail: "Facturas relacionadas por corrección y reemplazo.",
-                  color: "text-violet-500",
-                  bar: "bg-violet-500",
-                  progress: Math.min(facturas.filter((factura) => factura.documentosRelacionados?.length).length * 25, 100)
-                }
-              ].map((metric) => (
-                <div key={metric.label} className="flex min-h-36 flex-col justify-between rounded-lg border border-stone-200 bg-white p-3 shadow-sm dark:border-stone-700 dark:bg-black/45">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold">{metric.label}</p>
-                    <p className={`text-lg ${metric.color}`}>{metric.value}</p>
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-stone-500 dark:text-stone-400">{metric.detail}</p>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
-                    <motion.div
-                      className={`h-full rounded-full ${metric.bar}`}
-                      initial={{ width: 0 }}
-                      animate={{ width: progressWidth(metric.progress) }}
-                    />
-                  </div>
-                </div>
-              ))}
-              </div>
-            </div>
-          </div>
         </div>
         </div>
 
@@ -1527,8 +1135,12 @@ export function DashboardView({
               <button
                 key={bucket.label}
                 type="button"
-                onClick={() => setActiveAgingKey(bucket.label)}
+                onClick={() => {
+                  setActiveAgingKey(bucket.label);
+                  setSelectedAgingKey(bucket.label);
+                }}
                 onMouseEnter={() => setActiveAgingKey(bucket.label)}
+                aria-haspopup="dialog"
                 className={`rounded-lg border bg-gradient-to-br ${bucket.color} ${bucket.text} ${bucket.border} p-4 text-left shadow-[0_10px_22px_rgba(15,23,42,0.06)] transition ${
                   isActive ? "ring-2 ring-orange-500 ring-offset-2 ring-offset-white dark:ring-offset-stone-950" : "hover:-translate-y-0.5 hover:shadow-lg"
                 }`}
@@ -1557,12 +1169,12 @@ export function DashboardView({
             })}
           </div>
         </div>
+        </div>
       </section>
 
-      <section className="relative space-y-4 overflow-hidden rounded-2xl border border-cyan-900/15 bg-cyan-950/[0.025] p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] dark:border-cyan-700/30 dark:bg-cyan-950/15">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-800 via-cyan-600 to-transparent dark:from-cyan-500 dark:via-cyan-700/70" />
+      <section className="relative space-y-4 overflow-hidden rounded-2xl border border-stone-200 bg-stone-50/35 p-4 shadow-[0_8px_24px_rgba(15,23,42,0.05)] dark:border-stone-800 dark:bg-stone-900/20">
         <div className="relative flex items-center gap-3">
-          <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-cyan-900 shadow-sm ring-1 ring-cyan-900/15 dark:bg-black/35 dark:text-cyan-300 dark:ring-cyan-600/30">
+          <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-stone-600 shadow-sm ring-1 ring-stone-200 dark:bg-black/35 dark:text-stone-300 dark:ring-stone-700">
             02 · Acción
           </span>
           <div>
@@ -1585,16 +1197,17 @@ export function DashboardView({
             {acciones.map((factura) => (
               <Link
                 key={factura.id}
-                href={`/facturas?filtro=${
-                  factura.estadoVencimiento === "Factura Vencida" ? "Vencidas" : "Por%20vencer"
-                }&busqueda=${encodeURIComponent(factura.numero)}`}
+                href={facturasHref(
+                  factura.estadoVencimiento === "Vencida" ? "Vencidas" : "Por vencer",
+                  factura.numero
+                )}
                 className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-orange-50/45 hover:shadow-md sm:grid-cols-[1fr_auto] dark:border-stone-700 dark:bg-black/45 dark:hover:border-orange-500/40 dark:hover:bg-orange-500/10"
               >
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <DocumentFolio tipoDocumento={factura.tipoDocumento} numero={factura.numero} size="sm" />
                     <span className="rounded-md bg-stone-200 px-2 py-1 text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-300">
-                      {factura.estadoVencimiento === "Factura Vencida" ? "Vencida" : "Próxima a vencer"}
+                      {factura.estadoVencimiento === "Vencida" ? "Vencida" : "Próxima a vencer"}
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
@@ -1611,7 +1224,7 @@ export function DashboardView({
         </div>
 
         <div className={darkPanelClass("overflow-hidden")}>
-          <div className="border-b border-t-4 border-b-stone-200 border-t-emerald-500 bg-white px-4 py-3 text-stone-950 dark:border-b-stone-700 dark:bg-[#151515] dark:text-white">
+          <div className="border-b border-stone-200 bg-white px-4 py-3 text-stone-950 dark:border-stone-700 dark:bg-[#151515] dark:text-white">
             <h2 className="text-lg font-semibold">Top clientes cumplidores</h2>
           </div>
           <div className="space-y-3 p-4">
@@ -1627,7 +1240,7 @@ export function DashboardView({
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
                   <motion.div
-                    className="h-full rounded-full bg-orange-500"
+                    className="h-full rounded-full bg-emerald-500"
                     initial={{ width: 0 }}
                     animate={{ width: progressWidth(client.puntualidad) }}
                   />
@@ -1638,7 +1251,7 @@ export function DashboardView({
         </div>
 
         <div className={darkPanelClass("overflow-hidden")}>
-          <div className="border-b border-t-4 border-b-stone-200 border-t-rose-500 bg-white px-4 py-3 text-stone-950 dark:border-b-stone-700 dark:bg-[#151515] dark:text-white">
+          <div className="border-b border-stone-200 bg-white px-4 py-3 text-stone-950 dark:border-stone-700 dark:bg-[#151515] dark:text-white">
             <h2 className="text-lg font-semibold">Top clientes morosos</h2>
           </div>
           <div className="space-y-3 p-4">
@@ -1654,9 +1267,9 @@ export function DashboardView({
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-200 dark:bg-stone-800">
                   <motion.div
-                    className="h-full rounded-full bg-orange-500"
+                    className="h-full rounded-full bg-rose-500"
                     initial={{ width: 0 }}
-                    animate={{ width: progressWidth((client.saldoVencido / Math.max(kpis.pendienteVencido, 1)) * 100) }}
+                    animate={{ width: progressWidth((client.saldoVencido / Math.max(dashboardKpis.pendienteVencido, 1)) * 100) }}
                   />
                 </div>
               </div>
@@ -1665,6 +1278,94 @@ export function DashboardView({
         </div>
         </div>
       </section>
+
+      {selectedAgingBucket ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="aging-bucket-dialog-title"
+          onClick={() => setSelectedAgingKey(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="max-h-[86vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-stone-200 bg-white text-stone-950 shadow-2xl dark:border-stone-700 dark:bg-[#151515] dark:text-white"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-col gap-3 border-b border-stone-200 px-4 py-4 dark:border-stone-700 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
+                  Heatmap de mora
+                </p>
+                <h3 id="aging-bucket-dialog-title" className="mt-1 text-xl font-semibold">
+                  Facturas: {selectedAgingBucket.label}
+                </h3>
+                <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                  {selectedAgingBucket.count} documentos · {formatCurrency(selectedAgingBucket.monto)} pendiente
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAgingKey(null)}
+                className="inline-flex size-9 items-center justify-center rounded-lg border border-stone-200 text-stone-500 transition hover:bg-stone-50 hover:text-stone-950 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-black/35 dark:hover:text-white"
+                aria-label="Cerrar detalle de facturas"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="max-h-[64vh] overflow-auto p-4">
+              {selectedAgingBucket.facturas.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700">
+                  <div className="hidden grid-cols-[1.2fr_1.5fr_0.9fr_0.8fr_0.9fr_auto] gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:border-stone-700 dark:bg-black/25 dark:text-stone-400 md:grid">
+                    <span>Documento</span>
+                    <span>Cliente</span>
+                    <span>Vence</span>
+                    <span>Días</span>
+                    <span className="text-right">Saldo</span>
+                    <span className="text-right">Acción</span>
+                  </div>
+                  <div className="divide-y divide-stone-200 dark:divide-stone-700">
+                    {selectedAgingBucket.facturas.map((factura) => (
+                      <div
+                        key={factura.id}
+                        className="grid grid-cols-1 gap-3 px-3 py-3 text-sm transition hover:bg-stone-50 dark:hover:bg-black/25 md:grid-cols-[1.2fr_1.5fr_0.9fr_0.8fr_0.9fr_auto] md:items-center"
+                      >
+                        <div className="min-w-0">
+                          <DocumentFolio tipoDocumento={factura.tipoDocumento} numero={factura.numero} size="sm" />
+                          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                            Emitida {formatDate(factura.fechaEmision)}
+                          </p>
+                        </div>
+                        <p className="min-w-0 truncate font-medium">{factura.cliente.nombre}</p>
+                        <p className="text-stone-600 dark:text-stone-300">{formatDate(factura.fechaVencimiento)}</p>
+                        <p className="number-tabular font-semibold text-rose-600 dark:text-rose-400">
+                          {factura.diasVencidos} días
+                        </p>
+                        <p className="number-tabular text-right font-semibold">{formatCurrency(factura.saldoPendiente)}</p>
+                        <Link
+                          href={facturasHref("Vencidas", factura.numero)}
+                          className="justify-self-start rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 transition hover:bg-stone-50 hover:text-stone-950 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-black/35 dark:hover:text-white md:justify-self-end"
+                        >
+                          Ver factura
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-stone-300 p-8 text-center dark:border-stone-700">
+                  <p className="font-semibold">Sin facturas en este tramo</p>
+                  <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                    No hay documentos vencidos que cumplan esta condición.
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      ) : null}
 
     </div>
   );

@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { accountsReceivableRoutes } from "../modules/accounts-receivable/index.js";
 import { customerRoutes } from "../modules/customers/index.js";
 import { documentIntakeRoutes } from "../modules/document-intake/index.js";
+import { projectsRoutes } from "../modules/projects/index.js";
 import { HttpError } from "../shared/errors/http-error.js";
 import { sendJson } from "../shared/http/send-json.js";
 import { createRequestId } from "../shared/request-id/create-request-id.js";
@@ -15,7 +16,8 @@ export function createApp(env) {
     },
     ...accountsReceivableRoutes,
     ...customerRoutes,
-    ...documentIntakeRoutes
+    ...documentIntakeRoutes,
+    ...projectsRoutes
   ];
 
   return createServer(async (request, response) => {

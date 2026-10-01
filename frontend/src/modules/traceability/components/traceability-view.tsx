@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   CircleCheck,
   CreditCard,
   FilePenLine,
   GitBranch,
-  ReceiptText
+  ReceiptText,
+  Search
 } from "lucide-react";
+import { navigateTo } from "@/app/navigation";
 import {
   EstadoDocumentalBadge,
   EstadoPagoBadge,
@@ -16,11 +18,14 @@ import {
 } from "@/modules/accounts-receivable/components/status-badges";
 import { DocumentFolio, nombreCortoDocumento } from "@/modules/accounts-receivable/components/document-folio";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { Label, Select } from "@/shared/components/ui/form";
+import { Input, Label } from "@/shared/components/ui/form";
 import { Progress } from "@/shared/components/ui/progress";
-import { formatearFolioDocumento, limpiarNumeroSii, obtenerPrefijoDocumento } from "@/modules/accounts-receivable/data/document-ids";
+import { formatearFolioDocumento, limpiarNumeroSii } from "@/modules/accounts-receivable/data/document-ids";
 import { formatCurrency, formatDate } from "@/shared/lib/formatters";
+import { cn } from "@/shared/lib/classnames";
 import { EventoTimeline, FacturaCalculada } from "@/modules/accounts-receivable/types";
+
+import { InvoiceProjectRelation } from "@/modules/projects/components/invoice-project-relation";
 
 function iconForEvent(tipo: EventoTimeline["tipo"]) {
   if (tipo === "Pago" || tipo === "Abono") return CreditCard;
@@ -29,6 +34,14 @@ function iconForEvent(tipo: EventoTimeline["tipo"]) {
   }
   if (tipo === "Cierre") return CircleCheck;
   return ReceiptText;
+}
+
+function normalizeSearchValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 export function TraceabilityView({
@@ -41,11 +54,50 @@ export function TraceabilityView({
   initialFacturaId?: string;
 }) {
   const [facturaId, setFacturaId] = useState(initialFacturaId ?? facturas[0]?.id ?? "");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectorOpen, setSelectorOpen] = useState(false);
 
   const factura = useMemo(
     () => facturas.find((item) => item.id === facturaId) ?? facturas[0],
     [facturaId, facturas]
   );
+  const searchableFacturas = useMemo(() => {
+    const term = normalizeSearchValue(searchTerm);
+    const orderedFacturas = [...facturas].sort((a, b) => {
+      if (a.id === facturaId) return -1;
+      if (b.id === facturaId) return 1;
+      return new Date(b.fechaEmision).getTime() - new Date(a.fechaEmision).getTime();
+    });
+
+    if (!term) return orderedFacturas.slice(0, 8);
+
+    return orderedFacturas
+      .filter((item) => {
+        const folio = formatearFolioDocumento(item.tipoDocumento, item.numero);
+        const relatedDocuments = [
+          ...item.notasCredito.map((nota) => `NC ${nota.numero} ${nota.motivo}`),
+          ...item.notasDebito.map((nota) => `ND ${nota.numero} ${nota.motivo}`),
+          ...(item.documentosRelacionados ?? []).map((documento) => `${documento.tipo} ${documento.numero}`)
+        ].join(" ");
+        const haystack = [
+          folio,
+          item.numero,
+          limpiarNumeroSii(item.numero),
+          item.cliente.nombre,
+          item.cliente.rut,
+          item.tipoDocumento,
+          nombreCortoDocumento(item.tipoDocumento),
+          item.condicionPago,
+          item.estadoPago,
+          item.estadoVencimiento,
+          item.estadoDocumental,
+          relatedDocuments
+        ].join(" ");
+
+        return normalizeSearchValue(haystack).includes(term);
+      })
+      .slice(0, 10);
+  }, [facturaId, facturas, searchTerm]);
   const timeline = factura ? timelines[factura.id] : [];
   const relatedDocuments = useMemo(() => {
     if (!factura) return [];
@@ -75,6 +127,20 @@ export function TraceabilityView({
     ];
   }, [factura]);
 
+  useEffect(() => {
+    setFacturaId(initialFacturaId ?? facturas[0]?.id ?? "");
+  }, [facturas, initialFacturaId]);
+
+  function selectFactura(nextFacturaId: string) {
+    const params = new URLSearchParams(window.location.search);
+    params.set("factura", nextFacturaId);
+
+    setFacturaId(nextFacturaId);
+    setSearchTerm("");
+    setSelectorOpen(false);
+    navigateTo(`/trazabilidad?${params.toString()}`, { scroll: false });
+  }
+
   if (!factura) return null;
 
   return (
@@ -84,6 +150,7 @@ export function TraceabilityView({
         animate={{ opacity: 1, y: 0 }}
         className="space-y-5"
       >
+        <InvoiceProjectRelation key={factura.id} invoiceId={factura.id} />
         <Card className="overflow-hidden dark:border-stone-700 dark:bg-stone-950/85">
           <CardHeader className="border-b bg-slate-950 text-white">
             <CardTitle>Documento</CardTitle>
@@ -92,23 +159,98 @@ export function TraceabilityView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="factura">Factura</Label>
-              <Select
-                id="factura"
-                value={facturaId}
-                onChange={(event) => setFacturaId(event.target.value)}
-              >
-                {facturas.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {obtenerPrefijoDocumento(item.tipoDocumento)} {limpiarNumeroSii(item.numero)} · {item.cliente.nombre}
-                  </option>
-                ))}
-              </Select>
+            <div
+              className="space-y-2"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setSelectorOpen(false);
+                }
+              }}
+            >
+              <Label htmlFor="factura-search">Buscar documento</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-stone-400" aria-hidden="true" />
+                <Input
+                  id="factura-search"
+                  role="combobox"
+                  aria-expanded={selectorOpen}
+                  aria-controls="traceability-document-results"
+                  aria-autocomplete="list"
+                  value={searchTerm}
+                  onFocus={() => setSelectorOpen(true)}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
+                    setSelectorOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setSelectorOpen(false);
+                    }
+
+                    if (event.key === "Enter" && searchableFacturas[0]) {
+                      event.preventDefault();
+                      selectFactura(searchableFacturas[0].id);
+                    }
+                  }}
+                  placeholder="Folio, cliente, RUT, tipo o estado"
+                  className="pl-9"
+                />
+                {selectorOpen ? (
+                  <div
+                    id="traceability-document-results"
+                    role="listbox"
+                    className="absolute z-30 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl dark:border-stone-700 dark:bg-stone-950"
+                  >
+                    {searchableFacturas.length > 0 ? (
+                      searchableFacturas.map((item) => {
+                        const selected = item.id === factura.id;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            role="option"
+                            aria-selected={selected}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectFactura(item.id)}
+                            className={cn(
+                              "grid w-full gap-2 rounded-lg px-3 py-2 text-left text-sm transition hover:bg-stone-50 dark:hover:bg-stone-900",
+                              selected && "bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300"
+                            )}
+                          >
+                            <span className="flex min-w-0 items-center justify-between gap-3">
+                              <DocumentFolio tipoDocumento={item.tipoDocumento} numero={item.numero} size="sm" />
+                              <span className="number-tabular shrink-0 text-xs font-semibold text-stone-500 dark:text-stone-400">
+                                {formatCurrency(item.saldoPendiente)}
+                              </span>
+                            </span>
+                            <span className="min-w-0 truncate font-medium text-stone-700 dark:text-stone-200">
+                              {item.cliente.nombre}
+                            </span>
+                            <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
+                              <span>{nombreCortoDocumento(item.tipoDocumento)}</span>
+                              <span>·</span>
+                              <span>{item.estadoPago}</span>
+                              <span>·</span>
+                              <span>{item.estadoVencimiento}</span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="px-3 py-4 text-center text-sm text-stone-500 dark:text-stone-400">
+                        Sin documentos para esa búsqueda.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Busca por factura, cliente, RUT, tipo documental, NC/ND, pago o vencimiento.
+              </p>
             </div>
 
             <div className="overflow-hidden rounded-lg border border-stone-200 bg-white text-stone-950 shadow-[0_12px_28px_rgba(15,23,42,0.08)] dark:border-stone-700 dark:bg-stone-900/85 dark:text-white">
-              <div className="h-1 bg-gradient-to-r from-orange-500 to-amber-300" />
               <div className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -121,7 +263,7 @@ export function TraceabilityView({
                       className="mt-3"
                     />
                   </div>
-                  <span className="rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:border-orange-500/25 dark:bg-orange-500/10 dark:text-orange-300">
+                  <span className="rounded-md border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-semibold text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
                     {nombreCortoDocumento(factura.tipoDocumento)}
                   </span>
                 </div>
@@ -220,9 +362,9 @@ export function TraceabilityView({
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="overflow-hidden dark:border-stone-700 dark:bg-stone-950/85">
-          <CardHeader className="border-b bg-gradient-to-r from-orange-50 via-white to-white dark:border-stone-700 dark:bg-[linear-gradient(90deg,rgba(249,115,22,0.18),rgba(28,25,23,0.92)_34%,rgba(28,25,23,0.78))]">
+          <CardHeader className="border-b bg-stone-50/70 dark:border-stone-700 dark:bg-stone-900/50">
             <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary dark:bg-orange-500/10 dark:text-orange-300">
+              <div className="flex size-9 items-center justify-center rounded-md bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-300">
                 <GitBranch className="size-5" aria-hidden="true" />
               </div>
               <div>

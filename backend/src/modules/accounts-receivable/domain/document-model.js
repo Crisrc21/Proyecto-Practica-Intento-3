@@ -1,15 +1,15 @@
 export const paymentStatuses = {
-  unpaid: "No Pagado",
-  partial: "Pagado Parcialmente",
-  paid: "Pagado Completamente"
+  unpaid: "No pagado",
+  partial: "Pago parcial",
+  paid: "Pagado"
 };
 
 export const dueStatuses = {
-  current: "Factura Vigente",
-  overdue: "Factura Vencida"
+  current: "En plazo",
+  overdue: "Vencida"
 };
 
 export const documentStatuses = {
-  active: "Vigente",
-  voided: "Anulada"
+  active: "Activo",
+  voided: "Anulado"
 };

@@ -1,12 +1,19 @@
 import { createCustomerService } from "../application/customer-service.js";
-import { createLocalCustomersRepository } from "../infrastructure/local-customers-repository.js";
+import { createBemmboCustomersRepository } from "../infrastructure/bemmbo-customers-repository.js";
+import { createBemmboClient } from "../../../shared/bemmbo/bemmbo-client.js";
 
-const service = createCustomerService(createLocalCustomersRepository());
+function createService(env) {
+  const client = createBemmboClient({
+    token: env.bemmboTokenPho,
+    timeoutMs: env.bemmboTimeoutMs
+  });
+  return createCustomerService(createBemmboCustomersRepository(client));
+}
 
 export const customerRoutes = [
   {
     method: "GET",
     path: "/api/customers",
-    handler: () => service.listCustomers()
+    handler: ({ env }) => createService(env).listCustomers()
   }
 ];

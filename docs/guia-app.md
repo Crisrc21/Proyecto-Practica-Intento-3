@@ -7,6 +7,7 @@
 - Ingreso documental: `frontend/src/modules/document-intake/components/invoice-form.tsx`.
 - Clientes: `frontend/src/modules/customers/components/clients-view.tsx`.
 - Trazabilidad: `frontend/src/modules/traceability/components/traceability-view.tsx`.
+- Proyectos, contratos, hitos, avances, estados de pago, líneas de tiempo y cobros: `frontend/src/modules/projects/components/projects-view.tsx`. Uso y reglas: `docs/proyectos-y-contratos.md`. Manual operativo completo: `docs/manual-gestion-proyectos.md`.
 
 ## Donde tocar reglas
 

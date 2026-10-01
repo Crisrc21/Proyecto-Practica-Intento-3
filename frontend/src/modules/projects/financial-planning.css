@@ -1,0 +1,20 @@
+.project-financial-weeks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 22px}
+.project-financial-weeks article{padding:17px;background:var(--project-muted);border:1px solid var(--project-border);border-radius:10px}
+.project-financial-weeks article>span{font-size:11px;color:var(--project-orange);font-weight:600}
+.project-financial-weeks h3{font-size:11px;margin:8px 0;color:var(--project-secondary);font-weight:400}
+.project-financial-weeks strong{display:block;font-size:23px;font-variant-numeric:tabular-nums;margin:12px 0}
+.project-financial-weeks small{display:block;font-size:11px;line-height:1.8;color:var(--project-secondary)}
+.project-financial-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 22px}
+.project-financial-kpis>div{background:var(--project-muted);padding:18px;border-radius:10px}
+.project-financial-kpis span{display:block;font-size:11px;color:var(--project-secondary)}
+.project-financial-kpis strong{display:block;font-size:23px;margin-top:12px}
+.project-financial-alert{display:flex;flex-direction:column;gap:6px;margin:0 22px;padding:16px;border-left:3px solid var(--project-orange);background:var(--project-soft);font-size:12px;line-height:1.6}
+.project-financial-table{width:100%;min-width:940px;border-collapse:collapse;font-size:12px;text-align:left}
+.project-financial-table th{padding:13px 18px;color:var(--project-secondary);background:var(--project-muted);font-size:11px;font-weight:500}
+.project-financial-table td{padding:15px 18px;border-top:1px solid var(--project-border);vertical-align:top}
+.project-financial-table td:first-child{min-width:220px;max-width:340px}
+.project-financial-table a{display:block;margin-top:6px;color:var(--project-orange)}
+.project-financial-table small{display:block;margin-top:5px}
+.project-financial-edit{display:flex;flex-wrap:wrap;gap:7px;min-width:230px}.project-financial-edit label{width:100%}
+@media(max-width:1100px){.project-financial-weeks,.project-financial-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.project-financial-weeks,.project-financial-kpis{grid-template-columns:1fr;padding:0 16px}.project-financial .project-panel-heading{flex-direction:column;align-items:stretch}}

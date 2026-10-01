@@ -38,8 +38,7 @@ export function ClientsView({ initialClientes }: { initialClientes: Cliente[] })
     <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="overflow-hidden dark:border-stone-700 dark:bg-stone-950/85">
-          <CardHeader className="border-b bg-gradient-to-r from-orange-50 via-white to-white dark:border-stone-700 dark:bg-[linear-gradient(90deg,rgba(249,115,22,0.18),rgba(28,25,23,0.92)_34%,rgba(28,25,23,0.78))]">
-            <div className="mb-2 h-1 w-16 rounded-full bg-gradient-to-r from-orange-500 to-amber-300" />
+          <CardHeader className="border-b bg-stone-50/70 dark:border-stone-700 dark:bg-stone-900/50">
             <CardTitle>Crear cliente</CardTitle>
             <CardDescription>Alta manual para B2B y B2C.</CardDescription>
           </CardHeader>
