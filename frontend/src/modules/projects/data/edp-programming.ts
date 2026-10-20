@@ -6,6 +6,47 @@ export interface EdpBatch {
   taxMode?: "iva19-ceec309";
   approvalDate: string; intervalDays: number; paymentDays: number;
 }
+export interface FinancialEdpBatch {
+  count: number; grossPerEdp: number; retentionPercent: number; recoveryPercent: number;
+  taxMode?: "iva19-ceec309";
+  approvalDate: string; intervalDays: number; paymentDays: number;
+}
+
+export function buildFinancialEdpBatch(project: Project, batch: FinancialEdpBatch, existing: Milestone[]): Milestone[] {
+  if (!Number.isInteger(batch.count) || batch.count < 1 || batch.count + existing.length > 450) throw new Error("Indica una cantidad entera de EDP sin superar los 450 registros del proyecto.");
+  if (!Number.isFinite(batch.grossPerEdp) || batch.grossPerEdp <= 0 || batch.grossPerEdp > 1e15) throw new Error("Indica un monto bruto por EDP mayor que cero.");
+  if ([batch.retentionPercent, batch.recoveryPercent].some(n => !Number.isFinite(n) || n < 0 || n > 100) || batch.retentionPercent + batch.recoveryPercent > 100) throw new Error("Las devoluciones deben estar entre 0 y 100% y no superar juntas el bruto.");
+  if (batch.taxMode && (batch.retentionPercent !== 5 || batch.recoveryPercent !== 20)) throw new Error("El cálculo tributario utiliza retenciones del 5% y anticipo del 20%.");
+  if (!Number.isInteger(batch.intervalDays) || batch.intervalDays < 1 || !Number.isInteger(batch.paymentDays) || batch.paymentDays < 0) throw new Error("Los plazos deben ser días enteros; el intervalo debe ser mayor que cero.");
+  const date = new Date(`${batch.approvalDate}T00:00:00Z`);
+  const firstPresented = project.milestones.filter(m => m.type === "EDP" && m.edp?.presentedDate).map(m => m.edp!.presentedDate!).sort()[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(batch.approvalDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== batch.approvalDate ||
+    project.signedDate && batch.approvalDate < project.signedDate || firstPresented && batch.approvalDate < firstPresented) throw new Error("Indica una aprobación válida desde la firma y la presentación del primer EDP.");
+  const at = (days: number) => {
+    const next = new Date(date.getTime() + days * 86400000);
+    if (!Number.isFinite(next.getTime()) || next.getUTCFullYear() > 9999) throw new Error("Los plazos exceden el rango de fechas permitido.");
+    return next.toISOString().slice(0, 10);
+  };
+  const rounding = batch.taxMode ? Math.round : round;
+  const gross = rounding(batch.grossPerEdp);
+  const retention = rounding(gross * batch.retentionPercent / 100);
+  const advanceRecovery = rounding(gross * batch.recoveryPercent / 100);
+  const net = rounding(gross - retention - advanceRecovery);
+  if (gross <= 0 || net < 0) throw new Error("Revisa el monto y las devoluciones después del redondeo.");
+  const cashAmount = batch.taxMode ? net + Math.round(net * 0.19) - Math.round(net * 0.0309) : net;
+  const ordinal = Math.max(existing.filter(m => m.type === "EDP").length, ...existing.filter(m => m.type === "EDP").map(m => Number(m.name.match(/^EDP\s*(?:N[.°ºo]*\s*)?(\d+)/i)?.[1] || 0)));
+  return Array.from({ length: batch.count }, (_, index) => {
+    const forecastDate = at(index * batch.intervalDays), cashDate = at(index * batch.intervalDays + batch.paymentDays);
+    return {
+      id: crypto.randomUUID(), name: `EDP ${ordinal + index + 1}`, type: "EDP", scope: "General",
+      startDate: null, baselineDate: forecastDate, forecastDate, actualDate: null, baselineApproved: true,
+      state: "Pendiente", evidence: "", source: "", notes: "Programación financiera desde el primer EDP presentado.",
+      cashAmount, cashDate, baselineCashAmount: cashAmount, baselineCashDate: cashDate,
+      settlement: { gross, retention, advanceRecovery, discounts: 0, penalties: 0, adjustments: 0, ...(batch.taxMode ? { taxMode: batch.taxMode } : {}) },
+      edp: { stageKey: "total", metric: "totalPct", threshold: 1, documentOnly: true, status: "Previsto", triggeredDate: null, presentedDate: null, approvedDate: null, approvalEvidence: "" }
+    };
+  });
+}
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const scopes: Partial<Record<StageKey, Milestone["scope"]>> = {
   fabricacion: "Fabricación", despachos: "Despacho", fundaciones: "Fundaciones", montaje: "Montaje",

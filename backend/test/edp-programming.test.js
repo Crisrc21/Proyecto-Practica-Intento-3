@@ -22,6 +22,21 @@ function edp(id, threshold, status) {
 const plan = () => ({ sourceMilestoneId: "first", reference: "Carpeta / EDP 1 presentado", milestoneIds: ["first", "second"], contractAmount: 2000, currency: "UF" });
 const save = (s, p) => s.save({ project: p, expectedRevision: p.revision || 0 });
 
+test("financial EDP programming persists without progress reports or physical activation", async () => {
+  const p = { ...project(), edpPlan: plan(), progressReports: [] };
+  for (const m of p.milestones) {
+    m.scope = "General";
+    m.edp = { ...m.edp, stageKey: "total", metric: "totalPct", threshold: 1, documentOnly: true };
+  }
+  const saved = await save(service(), p);
+  const next = saved.milestones.find(m => m.id === "second");
+  assert.equal(next.edp.documentOnly, true);
+  assert.equal(next.edp.status, "Previsto");
+  assert.equal(next.edp.triggeredDate, null);
+  assert.equal(next.cashAmount, 750);
+  assert.equal(next.baselineCashAmount, 750);
+});
+
 test("first presented document establishes a persistent baseline without fabricating future progress, invoices or receipts", async () => {
   const s = service();
   const p = await save(s, { ...project(), edpPlan: plan() });

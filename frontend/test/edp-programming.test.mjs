@@ -7,10 +7,42 @@ async function moduleUrl(file, replacements = {}) {
   for (const [from, to] of Object.entries(replacements)) js = js.replace(from, to);
   return `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
 }
-const { buildEdpBatch, physicalPlan } = await import(await moduleUrl("edp-programming"));
+const { buildEdpBatch, buildFinancialEdpBatch, physicalPlan } = await import(await moduleUrl("edp-programming"));
 const { contractMilestones } = await import(await moduleUrl("contract-milestones", { '"./project-history"': JSON.stringify(await moduleUrl("project-history")) }));
 const project = { units: 113, areaM2: 5650, contractAmount: 260000, signedDate: "2026-01-20", milestones: [], invoiceLinks: [], currency: "UF" };
 const batch = { stageKey: "fabricacion", metric: "terminadas", from: 0, remaining: 113, perEdp: 10, gross: 208000, retentionPercent: 5, recoveryPercent: 20, approvalDate: "2027-09-01", intervalDays: 7, paymentDays: 30 };
+const financialBatch = { count: 3, grossPerEdp: 1000, retentionPercent: 5, recoveryPercent: 20, approvalDate: "2026-12-15", intervalDays: 30, paymentDays: 15 };
+
+test("financial batches repeat the amount and deductions, schedule dates and create no physical progress", () => {
+  const rows = buildFinancialEdpBatch({ ...project, units: 0, areaM2: null }, financialBatch, [{ type: "EDP", name: "EDP 7" }]);
+  assert.deepEqual(rows.map(m => m.name), ["EDP 8", "EDP 9", "EDP 10"]);
+  assert.deepEqual(rows.map(m => m.forecastDate), ["2026-12-15", "2027-01-14", "2027-02-13"]);
+  assert.deepEqual(rows.map(m => m.cashDate), ["2026-12-30", "2027-01-29", "2027-02-28"]);
+  assert.equal(physicalPlan({ ...project, milestones: rows }).length, 0);
+  for (const m of rows) {
+    assert.equal(m.settlement.gross, 1000);
+    assert.equal(m.settlement.retention, 50);
+    assert.equal(m.settlement.advanceRecovery, 200);
+    assert.equal(m.cashAmount, 750);
+    assert.equal(m.baselineCashAmount, 750);
+    assert.equal(m.edp.documentOnly, true);
+    assert.equal(m.edp.status, "Previsto");
+    assert.equal(m.edp.presentedDate, null);
+  }
+  const taxed = buildFinancialEdpBatch(project, { ...financialBatch, taxMode: "iva19-ceec309" }, [])[0];
+  assert.equal(taxed.cashAmount, 870);
+});
+
+test("financial programming rejects invalid amounts, counts, deductions and dates", () => {
+  for (const patch of [
+    { count: 0 }, { count: 1.5 }, { count: 451 }, { grossPerEdp: 0 }, { grossPerEdp: NaN },
+    { retentionPercent: -1 }, { retentionPercent: 81 }, { recoveryPercent: 101 },
+    { approvalDate: "2026-02-30" }, { approvalDate: "2025-01-01" },
+    { intervalDays: 0 }, { paymentDays: -1 }, { paymentDays: 1.5 }, { paymentDays: 1e12 }
+  ]) assert.throws(() => buildFinancialEdpBatch(project, { ...financialBatch, ...patch }, []));
+  assert.throws(() => buildFinancialEdpBatch({ ...project, milestones: [{ type: "EDP", edp: { presentedDate: "2027-01-01" } }] }, financialBatch, []));
+  assert.throws(() => buildFinancialEdpBatch(project, financialBatch, Array(448).fill({ type: "Etapa", name: "Etapa" })));
+});
 
 test("113 homes yield 11 EDP of ten and a final EDP of three, preserving gross and net reconciliation", () => {
   const rows = buildEdpBatch(project, batch, []);

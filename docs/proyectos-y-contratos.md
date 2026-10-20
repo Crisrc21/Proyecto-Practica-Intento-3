@@ -4,6 +4,8 @@ El módulo se abre en `/proyectos` desde el menú principal. Guarda los proyecto
 
 ## Uso
 
+En **Estados de pago → Programar siguientes EDP**, la programación financiera solicita cantidad de EDP y monto bruto por EDP, devolución de retenciones y anticipo, primera aprobación prevista, días entre EDP y días de aprobación a cobro. Cada grupo repite el monto indicado y calcula sus fechas y descuentos; la propuesta muestra aprobación, bruto, neto y cobro antes de guardar. No solicita partidas, mediciones ni avances físicos. Los nuevos EDP quedan previstos y no generan avance de obra. Cuando se hereda el cálculo IVA/CEEC del primer EDP, se mantienen las tasas existentes de retenciones (5%) y anticipo (20%).
+
 0. En **Potenciales**, usar **Agregar potencial** para registrar solo el nombre del contrato posible. Sus montos no entran en la cartera firmada, las líneas de tiempo ni las proyecciones de cobros. **Contrato firmado** lo activa con un clic; utiliza la fecha de firma guardada o, si está vacía, la fecha del día en Chile.
 1. En **Vista general → Editar ficha**, completar el tipo de contrato, cliente, viviendas, superficie total en m², moneda, monto, fechas y condiciones de pago. Se puede seleccionar el tipo de contrato antes o después de confirmar la firma.
 2. En **Hitos y avances**, programar las fechas y registrar cortes acumulados con fecha y evidencia. Los informes pueden provenir de las carpetas que Operaciones ya utiliza. Las correcciones se agregan como nuevos cortes y no borran el anterior.
