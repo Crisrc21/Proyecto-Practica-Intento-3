@@ -1,5 +1,5 @@
 import type { Milestone, Project, StageKey } from "../types";
-import { activeStages, stages } from "../data/project-workflow";
+import { stages } from "../data/project-workflow";
 
 const groups = [
   { label: "Urbanización", options: [{ key: "exterior", label: "Urbanización Exterior", scope: "Urbanización Exterior" }] },
@@ -10,10 +10,8 @@ const groups = [
   ] }
 ] as const;
 
-export function EdpPartidaSelector({ project, milestone, locked, onChange }: { project: Project; milestone: Milestone; locked: boolean; onChange: (patch: Partial<Milestone>) => void }) {
+export function EdpPartidaSelector({ milestone, locked, onChange }: { project: Project; milestone: Milestone; locked: boolean; onChange: (patch: Partial<Milestone>) => void }) {
   const edp = milestone.edp!;
-  const active = activeStages(project.nature, project.includedWorks);
-  const enabled = (key: string) => active.some(s => s.key === key);
   const selected = milestone.detailKeys?.length ? milestone.detailKeys : [edp.stageKey];
   const group = groups.find(g => g.options.some(o => o.key === selected[0]));
   function select(key: StageKey, detailKeys: StageKey[] = [key]) {
@@ -22,7 +20,7 @@ export function EdpPartidaSelector({ project, milestone, locked, onChange }: { p
     onChange({ detailKeys, scope: option.scope, type: "EDP", edp: locked ? edp : { ...edp, stageKey: key, metric, threshold: metric.endsWith("Pct") ? 100 : 1 } });
   }
   return <>
-    <label className="project-field project-full">Partida o condición que habilita el EDP
+    <label className="project-field project-full">Partida del EDP
       <select value={group?.label || "legacy"} onChange={e => {
         const next = groups.find(g => g.label === e.target.value)!;
         select(next.options[0].key);
@@ -42,6 +40,5 @@ export function EdpPartidaSelector({ project, milestone, locked, onChange }: { p
         }} /><span>{o.label}</span>
       </label>)}
     </fieldset>}
-    {!enabled(edp.stageKey) && <p className="project-note project-full">Al guardar este EDP se incorporará {edp.stageKey === "exterior" ? "Urbanización Exterior" : "Urbanización Interior"} a los alcances del proyecto{project.nature !== "llave_en_mano" ? " y el tipo de contrato se actualizará a Completa" : ""}.</p>}
   </>;
 }

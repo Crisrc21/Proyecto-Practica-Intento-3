@@ -133,103 +133,42 @@ async function activate(service, nature=1) {
 }
 async function update(service,p,patch) { return service.save({project:{...p,...patch},expectedRevision:p.revision,reason:"Seguimiento"}); }
 
-test("potential contracts remain separate and signing creates the exact ordered stages for each nature",async t=>{
+test("contract classification is descriptive and does not create stages", async t => {
   for (const nature of [1,2,3,4]) {
-    const {service}=await setup(t); const p=await activate(service,nature);
-    const expected=["firma","anticipo","fabricacion","despachos","fundaciones","montaje",...([2,3].includes(nature)?["interior"]:[]),...([3,4].includes(nature)?["exterior"]:[]),"total"];
-    assert.deepEqual(p.milestones.map(m=>m.stageKey),expected);
-    assert.equal(p.milestones[0].actualDate,"2026-01-01");
-    const repeated=await update(service,p,{});
-    assert.equal(repeated.milestones.length,expected.length,"repeated saves do not duplicate stages");
-    await assert.rejects(update(service,repeated,{lifecycle:"Potencial"}),/no puede volver/);
+    const {service}=await setup(t); let p=await activate(service,nature);
+    assert.deepEqual(p.milestones,[]);
+    p=await update(service,p,{nature:"llave_en_mano",includedWorks:["interior","calles","otras"]});
+    assert.deepEqual(p.includedWorks,["interior","calles","otras"]);
+    assert.deepEqual(p.milestones,[]);
+    assert.deepEqual(p.progressReports,[]);
+    await assert.rejects(update(service,p,{lifecycle:"Potencial"}),/no puede volver/);
   }
 });
-test("potential contracts cannot receive milestones; signing allows classification in the next step",async t=>{
-  const {service}=await setup(t);
-  await assert.rejects(service.save({project:potential({milestones:[milestone()]}),expectedRevision:0,reason:"Intento"}),/Firma el contrato/);
-  const p=await service.save({project:potential({nature:null}),expectedRevision:0,reason:"Potencial"});
-  const signed=await update(service,p,{lifecycle:"Firmado",signedDate:"2026-01-01"});
-  assert.equal(signed.lifecycle,"Firmado");
-  assert.equal(signed.milestones.length,0);
-  const classified=await update(service,signed,{nature:4});
-  assert(classified.milestones.some(m=>m.stageKey==="exterior"));
-});
-test("cumulative progress prepares an EDP once and leaves its planned money and baseline intact",async t=>{
+test("EDP presentation and approval are independent of contract type and physical progress",async t=>{
   const {service}=await setup(t); let p=await activate(service);
-  p=await update(service,p,{milestones:[...p.milestones,edp({baselineApproved:true})]});
-  assert.equal(p.milestones.at(-1).edp.status,"Previsto");
-  p=await update(service,p,{progressReports:[progress({quantity:90})]});
-  assert.equal(p.milestones.at(-1).edp.status,"Previsto");
-  p=await update(service,p,{progressReports:[...p.progressReports,progress({id:"cut-2",date:"2026-02-02"})]});
-  assert.equal(p.milestones.at(-1).edp.status,"Preparado");
-  assert.equal(p.milestones.at(-1).actualDate,null,"prepared EDP is not approved");
-  assert.equal(p.milestones.at(-1).cashAmount,100);
-  assert.equal(p.milestones.at(-1).baselineCashAmount,100);
-  const count=p.milestones.length;
-  p=await update(service,p,{});
-  assert.equal(p.milestones.length,count);
-  assert.equal(p.milestones.at(-1).edp.triggeredDate,"2026-02-02");
-  assert.equal(p.invoiceLinks.length,0,"physical progress never fabricates accounting records");
-});
-test("backdated reports use chronological cuts and revisions preserve all prior evidence",async t=>{
-  const {service}=await setup(t); let p=await activate(service);
-  p=await update(service,p,{milestones:[...p.milestones,edp()],progressReports:[progress({quantity:1000,completedUnits:10})]});
-  assert.equal(p.milestones.find(m=>m.stageKey==="fabricacion").actualDate,"2026-02-01");
-  p=await update(service,p,{progressReports:[...p.progressReports,progress({id:"backdated",date:"2026-01-15",quantity:10})]});
-  assert.equal(p.milestones.at(-1).edp.status,"Preparado");
-  await assert.rejects(update(service,p,{progressReports:[]}),/se conservan/);
-  p=await update(service,p,{progressReports:[...p.progressReports,progress({id:"correction",date:"2026-02-03",quantity:50})]});
-  assert.equal(p.milestones.at(-1).edp.status,"Previsto");
-  assert.equal(p.milestones.find(m=>m.stageKey==="fabricacion").actualDate,null);
-  assert.equal(p.progressReports.length,3);
-  assert(p.history.at(-1).changes.some(c=>c.includes("Avance fabricacion")));
-});
-test("EDP presentation and approval require achieved condition and dated documentary evidence",async t=>{
-  const {service}=await setup(t); let p=await activate(service);
-  p=await update(service,p,{milestones:[...p.milestones,edp()]});
-  const setEdp=patch=>p.milestones.map(m=>m.edp?{...m,edp:{...m.edp,...patch}}:m);
-  await assert.rejects(update(service,p,{milestones:setEdp({status:"Presentado",presentedDate:"2026-02-03"})}),/avance/);
-  p=await update(service,p,{progressReports:[progress()]});
-  await assert.rejects(update(service,p,{milestones:setEdp({status:"Aprobado",presentedDate:"2026-02-02",approvedDate:"2026-02-04"})}),/referencia/);
-  await assert.rejects(update(service,p,{milestones:setEdp({status:"Presentado",presentedDate:"2026-01-15"})}),/anterior al avance/);
-  p=await update(service,p,{milestones:setEdp({status:"Aprobado",presentedDate:"2026-02-02",approvedDate:"2026-02-04",approvalEvidence:"Carpeta Aprobados / EDP 1"})});
-  assert.equal(p.milestones.at(-1).actualDate,"2026-02-04");
-  assert.equal(p.milestones.at(-1).evidence,"Carpeta Aprobados / EDP 1");
+  const item=edp({edp:{...edp().edp,stageKey:"exterior",metric:"exteriorPct",threshold:50,status:"Presentado",presentedDate:"2026-02-03"}});
+  p=await update(service,p,{milestones:[item]});
+  assert.equal(p.nature,"fabricacion_montaje");
+  assert.deepEqual(p.includedWorks,[]);
+  assert.deepEqual(p.progressReports,[]);
+  const setEdp=patch=>p.milestones.map(m=>({...m,edp:{...m.edp,...patch}}));
+  await assert.rejects(update(service,p,{milestones:setEdp({status:"Aprobado",approvedDate:"2026-02-04"})}),/referencia/);
+  p=await update(service,p,{milestones:setEdp({status:"Aprobado",approvedDate:"2026-02-04",approvalEvidence:"EDP aprobado"})});
+  assert.equal(p.milestones[0].actualDate,"2026-02-04");
+  p=await update(service,p,{nature:"llave_en_mano",includedWorks:["interior"]});
+  p=await update(service,p,{nature:"fabricacion_montaje",includedWorks:[]});
+  assert.equal(p.milestones[0].edp.status,"Aprobado");
   await assert.rejects(update(service,p,{milestones:setEdp({status:"Previsto"})}),/conserva su estado/);
-  await assert.rejects(update(service,p,{milestones:setEdp({threshold:200})}),/condición.*conserva/);
 });
-test("nature changes cannot discard urbanization evidence or confirmed commitments",async t=>{
-  const {service}=await setup(t); let p=await activate(service,3);
-  p=await update(service,p,{progressReports:[progress({stageKey:"interior",quantity:null,completedUnits:null,percent:20})]});
-  await assert.rejects(update(service,p,{nature:4}),/avances registrados/);
-  p=await update(service,p,{nature:2});
-  assert(!p.milestones.some(m=>m.stageKey==="exterior"));
-  assert(p.milestones.some(m=>m.stageKey==="fundaciones"));
-});
-test("invalid quantities, future dates and incompatible EDP conditions are rejected",()=>{
-  const base=potential({lifecycle:"Firmado",signedDate:"2026-01-01"});
-  for(const patch of [{quantity:1001},{completedUnits:11},{date:"2099-01-01"},{evidence:""},{stageKey:"montaje",quantity:1.5,completedUnits:null},{stageKey:"interior",quantity:null,completedUnits:null,percent:101}]) {
-    assert.throws(()=>validateProject({...base,progressReports:[progress(patch)]}));
-  }
-  assert.throws(()=>validateProject({...base,milestones:[edp({edp:{...edp().edp,stageKey:"exterior",metric:"exteriorPct",threshold:25}})]}),/incompatible/);
-  assert.throws(()=>validateProject({...base,milestones:[edp({edp:{...edp().edp,metric:"terminadas",threshold:20}})]}),/umbral/);
-});
-test("existing project plans survive classification without creating extra cash forecasts",async t=>{
+test("editing classification preserves historical evidence and existing financial commitments",async t=>{
   const {service}=await setup(t);
-  let p=await service.save({project:project(),expectedRevision:0,reason:"Plan existente"});
-  p=await update(service,p,{nature:3,areaM2:1000});
-  assert.equal(p.milestones.filter(m=>m.type==="EDP").length,1);
-  assert.equal(p.milestones.find(m=>m.id==="edp1").baselineCashAmount,100);
-  assert.equal(p.milestones.filter(m=>m.stageKey).length,9);
-});
-test("later reports confirming the same completion do not move the achieved date or EDP trigger",async t=>{
-  const {service}=await setup(t); let p=await activate(service);
-  p=await update(service,p,{milestones:[...p.milestones,edp()],progressReports:[progress({quantity:1000,completedUnits:10})]});
-  p=await update(service,p,{progressReports:[...p.progressReports,progress({id:"later",date:"2026-03-01",quantity:1000,completedUnits:10})]});
-  assert.equal(p.milestones.find(m=>m.stageKey==="fabricacion").actualDate,"2026-02-01");
-  assert.equal(p.milestones.find(m=>m.edp).edp.triggeredDate,"2026-02-01");
-  p=await update(service,p,{milestones:p.milestones.map(m=>m.edp?{...m,edp:{...m.edp,status:"Presentado",presentedDate:"2026-02-05"}}:m)});
-  assert.equal(p.milestones.find(m=>m.edp).edp.status,"Presentado");
+  let p=await service.save({project:project({nature:"llave_en_mano",includedWorks:["interior"],progressReports:[progress({stageKey:"interior",quantity:null,completedUnits:null,percent:20})]}),expectedRevision:0});
+  const before=structuredClone(p);
+  p=await update(service,p,{nature:"fabricacion_montaje",includedWorks:[]});
+  assert.deepEqual(p.milestones,before.milestones);
+  assert.deepEqual(p.progressReports,before.progressReports);
+  assert.deepEqual(p.invoiceLinks,before.invoiceLinks);
+  await assert.rejects(update(service,p,{progressReports:[]}),/se conservan/);
 });
 
 test("a potential requires name and mandante, and signing unlocks contractual details",async t=>{
@@ -266,18 +205,18 @@ test("legacy stored classifications migrate without rewriting evidence, revision
   for (const p of loaded.projects) { assert.equal(p.revision,7); assert.deepEqual(p.milestones,legacy[0].milestones); assert.deepEqual(p.history,legacy[0].history); }
   assert.equal(await readFile(join(folder,'projects.json'),'utf8'),original,'read-only migration must not rewrite private data');
   const saved=await service.save({project:loaded.projects[3],expectedRevision:7});
-  assert.equal(saved.revision,8); assert(saved.milestones.some(m=>m.stageKey==='exterior'));
+  assert.equal(saved.revision,8); assert.deepEqual(saved.milestones,validateProject(legacy[3]).milestones);
   assert.equal((await repo.read()).projects[3].nature,'llave_en_mano');
 });
 
-test("turnkey optional works support physical progress and EDP without losing protected evidence",async t=>{
+test("contractual works can change independently of historical reports and EDP",async t=>{
   const {service}=await setup(t);
   let p=await service.save({project:project({nature:'llave_en_mano',includedWorks:['calles','otras'],milestones:[],progressReports:[]}),expectedRevision:0});
-  assert.deepEqual(p.milestones.map(m=>m.stageKey),['firma','anticipo','fabricacion','despachos','fundaciones','montaje','calles','otras','total']);
+  assert.deepEqual(p.milestones,[]);
   p=await update(service,p,{milestones:[...p.milestones,edp({edp:{stageKey:'calles',metric:'callesPct',threshold:50,status:'Previsto',triggeredDate:null,presentedDate:null,approvedDate:null,approvalEvidence:''}})],progressReports:[progress({stageKey:'calles',quantity:null,completedUnits:null,percent:60})]});
-  assert.equal(p.milestones.at(-1).edp.status,'Preparado');
-  await assert.rejects(update(service,p,{includedWorks:['otras']}),/incompatible|etapa/);
-  await assert.rejects(update(service,p,{nature:'fabricacion_montaje',includedWorks:[]}),/incompatible|etapa/);
+  assert.equal(p.milestones.at(-1).edp.status,'Previsto');
+  p=await update(service,p,{includedWorks:['otras']});
+  p=await update(service,p,{nature:'fabricacion_montaje',includedWorks:[]});
   assert.throws(()=>validateProject({...p,includedWorks:['inexistente']}),/Alcances/);
 });
 

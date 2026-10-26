@@ -16,7 +16,6 @@ import { SimulationInvoices } from "./project-simulation";
 import { ProjectOverview } from "./project-overview";
 import { workflowAtCutoff } from "../data/project-workflow";
 import { ContractMilestones } from "./contract-milestones";
-import { withEdpScope } from "../data/edp-project-scope";
 import { withInvoiceDates } from "../data/edp-invoice-data";
 
 type View = "resumen" | "cobros" | "historial" | "edps" | "manual";
@@ -110,7 +109,7 @@ export function ProjectsView({ search, invoices, dataState, onRefreshAccounts }:
     {deleteTarget && <Editor title="Eliminar proyecto" onClose={() => { if (!deleting) setDeleteTarget(null); }}><div className="project-form"><p className="project-full">¿Eliminar el proyecto <strong>{deleteTarget.name}</strong> ({deleteTarget.customer || "Mandante por definir"})?</p><p className="project-note project-full">Se retirarán de Gestión de proyectos sus datos, avances, EDP, proyecciones y relaciones con facturas. Las facturas y los pagos originales de CxC se conservarán.</p>{deleteError && <p role="alert" className="project-error project-full">{deleteError}</p>}<div className="project-form-actions project-full"><button type="button" autoFocus disabled={deleting} className="project-button" onClick={() => setDeleteTarget(null)}>Cancelar</button><button type="button" disabled={deleting} className="project-button project-negative" onClick={confirmDelete}>{deleting ? "Eliminando…" : "Eliminar proyecto"}</button></div></div></Editor>}
     {profileEditor && <ProjectProfile key={`${profileEditor.id}-${profileEditor.revision}`} project={profileEditor} onSave={persist} onClose={() => setProfileEditor(null)} onOpen={() => changeView("resumen", profileEditor.id)} />}
     {projectEditor && projectEditor.lifecycle !== "Potencial" && <ProjectForm project={projectEditor} onClose={()=>setProjectEditor(null)} onSave={persist} />}
-    {milestoneEditor?.edp && selected && <EdpForm invoices={invoices} dataState={dataState} project={selected} milestone={milestoneEditor} onClose={()=>setMilestoneEditor(null)} onSave={(m,reason,report)=>persist({ ...withEdpScope(selected, m), progressReports: report ? [...(selected.progressReports || []), report] : selected.progressReports, milestones: selected.milestones.some(item=>item.id===m.id) ? selected.milestones.map(item=>item.id===m.id?m:item) : [...selected.milestones,m] },reason)} />}
+    {milestoneEditor?.edp && selected && <EdpForm invoices={invoices} dataState={dataState} project={selected} milestone={milestoneEditor} onClose={()=>setMilestoneEditor(null)} onSave={(m,reason)=>persist({ ...selected, milestones: selected.milestones.some(item=>item.id===m.id) ? selected.milestones.map(item=>item.id===m.id?m:item) : [...selected.milestones,m] },reason)} />}
     {milestoneEditor && selected && !milestoneEditor.edp && <MilestoneForm milestone={milestoneEditor} currency={selected.currency} onClose={()=>setMilestoneEditor(null)} onSave={(m,reason)=>persist({ ...selected, milestones: selected.milestones.some(item=>item.id===m.id) ? selected.milestones.map(item=>item.id===m.id?m:item) : [...selected.milestones,m] },reason)} />}
   </div>;
 }

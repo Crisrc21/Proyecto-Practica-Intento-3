@@ -1,5 +1,5 @@
 import { HttpError } from "../../../shared/errors/http-error.js";
-import { activeStages, stageMetrics, stages } from "./project-workflow.js";
+import { stageMetrics, stages } from "./project-workflow.js";
 
 import { normalizeClassification } from "./contract-classification.js";
 
@@ -178,7 +178,7 @@ export function validateProject(input) {
     }
     if (m.edp !== undefined) {
       const e = m.edp;
-      if (!e || !["EDP", "Anticipo"].includes(m.type) || !p.nature || !activeStages(p.nature, p.includedWorks).some(([key]) => key === e.stageKey) || !stageMetrics[e.stageKey]?.includes(e.metric)) fail("Condición del EDP incompatible con la naturaleza o etapa.");
+      if (!e || !["EDP", "Anticipo"].includes(m.type) || !stageMetrics[e.stageKey]?.includes(e.metric)) fail("Condición del EDP incompatible con su partida.");
       next.edp = { stageKey: e.stageKey, metric: e.metric, threshold: number(e.threshold, "umbral del EDP"), status: e.status,
         triggeredDate: date(e.triggeredDate ?? null, "habilitación"), presentedDate: date(e.presentedDate ?? null, "presentación"), approvedDate: date(e.approvedDate ?? null, "aprobación"), approvalEvidence: text(e.approvalEvidence ?? "", "evidencia de aprobación", 2000) };
       if (!["Previsto", "Preparado", "Presentado", "Aprobado"].includes(e.status)) fail("Estado de EDP inválido.");
