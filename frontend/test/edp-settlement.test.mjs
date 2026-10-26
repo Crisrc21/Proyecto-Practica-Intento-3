@@ -4,7 +4,29 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 const source = await readFile(new URL("../src/modules/projects/data/edp-settlement.ts", import.meta.url), "utf8");
 const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
-const { settlementTotals, fixedEdpDeductions } = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+const { settlementTotals, fixedEdpDeductions, newEdpSettlement } = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+
+test("new EDP uses project conditions and retains its rates after project changes", () => {
+  const project = { edpConditions: { retentionPercent: 3, recoveryPercent: 10, reference: "Contrato" } };
+  const original = newEdpSettlement(project);
+  const calculated = fixedEdpDeductions({ ...original, gross: 1000 });
+  assert.equal(calculated.retention, 30);
+  assert.equal(calculated.advanceRecovery, 100);
+  assert.equal(settlementTotals(calculated).total, 1008);
+  project.edpConditions.recoveryPercent = 15;
+  assert.equal(fixedEdpDeductions({ ...calculated, gross: 2000 }).advanceRecovery, 200);
+  assert.equal(newEdpSettlement(project).recoveryPercent, 15);
+  assert.equal(newEdpSettlement({}).recoveryPercent, 20);
+  assert.equal(newEdpSettlement({}).retentionPercent, 5);
+});
+
+test("zero and fractional project rates work with optional deductions", () => {
+  const base = newEdpSettlement({ edpConditions: { recoveryPercent: 0, retentionPercent: 2.5 } });
+  const s = fixedEdpDeductions({ ...base, gross: 1000 });
+  assert.equal(s.advanceRecovery, 0);
+  assert.equal(s.retention, 25);
+  assert.equal(fixedEdpDeductions({ ...s, applyRetention: false }).retention, 0);
+});
 test("automatic deductions use 20% and 5% of physical advance, rounding whole amounts", () => {
   const s = fixedEdpDeductions({ gross: 100000, advanceRecovery: 0, retention: 0, taxMode: "iva19-ceec309" });
   assert.equal(s.advanceRecovery, 20000);

@@ -10,8 +10,9 @@ export function ContractMilestones({ project, invoices, dataState, cutoff, onEdi
   function manage(type: "Anticipo" | "Retenciones") {
     const records = project.milestones.filter(m => m.type === type);
     if (records.length > 1) { onEdps(); return; }
-    const held = project.milestones.filter(m => m.type === "EDP").reduce((s, m) => s + (m.settlement?.retention || 0), 0);
-    onEdit(records[0] || { ...emptyMilestone(), type, name: type === "Anticipo" ? "Anticipo del contrato" : "Liberación y cobro de retenciones", scope: "General", cashAmount: type === "Retenciones" && held > 0 ? Math.round(held * 100) / 100 : null });
+    const deduction = type === "Anticipo" ? "advanceRecovery" : "retention";
+    const suggestedAmount = project.milestones.filter(m => m.type === "EDP").reduce((sum, m) => sum + (m.settlement?.[deduction] || 0), 0);
+    onEdit(records[0] || { ...emptyMilestone(), type, name: type === "Anticipo" ? "Anticipo del contrato" : "Liberación y cobro de retenciones", scope: "General", cashAmount: suggestedAmount > 0 ? Math.round(suggestedAmount * 100) / 100 : null });
   }
   return <div className="project-contract-milestones" aria-label="Tres hitos financieros del proyecto">{milestones.map((m, i) => <section className="project-panel project-contract-milestone" key={m.key}><span className={`project-badge ${m.actual ? "success" : "neutral"}`}>{m.actual ? <CheckCircle2 size={15} /> : <CircleDashed size={15} />}Hito {i + 1} · {m.actual ? "Cumplido" : "Pendiente"}</span><h3>{m.name}</h3><p>{m.detail}</p><p>{m.actual ? `Cumplido: ${shortDate(m.actual)}` : `Previsto: ${shortDate(m.forecast)}`}</p><div className="project-actions"><button className="project-button" onClick={() => m.key === "firma" ? onProfile() : manage(m.key === "anticipo" ? "Anticipo" : "Retenciones")}>{m.key === "firma" ? "Ver datos del proyecto" : m.key === "anticipo" ? "Gestionar anticipo" : "Gestionar retenciones"}</button>{m.key !== "firma" && <button className="project-text-link" onClick={onEdps}>Facturas y cobros</button>}</div></section>)}</div>;
 }

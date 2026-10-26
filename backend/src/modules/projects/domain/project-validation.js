@@ -61,6 +61,12 @@ export function validateProject(input) {
     invoiceLinks: []
   };
   if (!/^[a-zA-Z0-9_-]+$/.test(p.id)) fail("Identificador de proyecto inválido.");
+  if (input.edpConditions !== undefined) {
+    const c = input.edpConditions;
+    if (!c || typeof c !== "object" || Array.isArray(c)) fail("Condiciones EDP inválidas.");
+    p.edpConditions = { reference: text(c.reference, "referencia de condiciones EDP", 2000), retentionPercent: number(c.retentionPercent, "porcentaje de retenciones"), recoveryPercent: number(c.recoveryPercent, "porcentaje de anticipo") };
+    if (p.edpConditions.retentionPercent + p.edpConditions.recoveryPercent > 100) fail("Los porcentajes de condiciones EDP no pueden superar juntos el 100%.");
+  }
   if (!Number.isInteger(p.units)) fail("La cantidad de viviendas debe ser entera.");
   if (!["Potencial", "Firmado"].includes(p.lifecycle)) fail("Estado contractual inválido.");
   if (p.nature !== null && !["fabricacion_montaje", "llave_en_mano"].includes(p.nature)) fail("Naturaleza contractual inválida.");
@@ -153,6 +159,13 @@ export function validateProject(input) {
       const adjustments = a.adjustments ?? 0;
       if (typeof adjustments !== "number" || !Number.isFinite(adjustments) || Math.abs(adjustments) > 1e15) fail("El ajuste del EDP debe ser un número válido.");
       next.settlement = { gross: number(a.gross, "avance bruto"), advanceRecovery: number(a.advanceRecovery, "amortización de anticipo"), retention: number(a.retention, "retención"), discounts: number(a.discounts ?? 0, "descuentos"), penalties: number(a.penalties ?? 0, "multas"), adjustments };
+      for (const key of ["retentionPercent", "recoveryPercent"]) {
+        if (a[key] !== undefined) {
+          next.settlement[key] = number(a[key], "porcentaje del EDP");
+          if (next.settlement[key] > 100) fail("El porcentaje del EDP no puede superar el 100%.");
+        }
+      }
+      if ((a.retentionPercent ?? 5) + (a.recoveryPercent ?? 20) > 100 && (a.retentionPercent !== undefined || a.recoveryPercent !== undefined)) fail("Los porcentajes del EDP no pueden superar juntos el 100%.");
       for (const flag of ["applyAdvanceRecovery", "applyRetention"]) {
         if (a[flag] !== undefined) {
           if (typeof a[flag] !== "boolean") fail("Selección de devoluciones inválida.");
@@ -165,6 +178,9 @@ export function validateProject(input) {
       let total = net;
       if (a.taxMode === "iva19-ceec309") {
         next.settlement.taxMode = a.taxMode;
+        for (const [rate, amount, flag] of [["recoveryPercent", "advanceRecovery", "applyAdvanceRecovery"], ["retentionPercent", "retention", "applyRetention"]]) {
+          if (a[rate] !== undefined && next.settlement[amount] !== (a[flag] === false ? 0 : Math.round(next.settlement.gross * a[rate] / 100))) fail("El descuento del EDP no coincide con su porcentaje guardado.");
+        }
         const netRounded = Math.round(net);
         total = netRounded + Math.round(netRounded * 0.19) - Math.round(netRounded * 0.0309);
       }

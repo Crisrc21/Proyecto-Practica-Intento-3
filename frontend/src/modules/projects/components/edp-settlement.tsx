@@ -36,7 +36,7 @@ export function EdpSettlementFields({ milestone, currency, onChange }: { milesto
             const settlement = fixedEdpDeductions({ ...s, [flag]: e.target.checked });
             onChange({ settlement, cashAmount: settlementTotals(settlement).total });
           }} />Aplicar {label.toLocaleLowerCase("es")}</label>}
-          <label className="project-field">{label}{optional ? key === "advanceRecovery" ? " (20%)" : " (5%)" : ""} ({currency})<AmountInput required disabled={optional} value={s[key]} onChange={value => update(key, value ?? 0)} />{optional && !enabled && <span>No se descuenta en este EDP.</span>}</label>
+          <label className="project-field">{label}{optional ? key === "advanceRecovery" ? ` (${s.recoveryPercent ?? 20}%)` : ` (${s.retentionPercent ?? 5}%)` : ""} ({currency})<AmountInput required disabled={optional} value={s[key]} onChange={value => update(key, value ?? 0)} />{optional && !enabled && <span>No se descuenta en este EDP.</span>}</label>
         </div>;
       })}
       {Boolean(s.discounts || s.penalties || s.adjustments) && <p className="project-note project-full">Otros ajustes conservados del documento: descuentos {amount(s.discounts || 0, currency)}, multas {amount(s.penalties || 0, currency)}, ajustes {amount(s.adjustments || 0, currency)}.</p>}

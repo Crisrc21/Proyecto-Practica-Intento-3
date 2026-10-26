@@ -13,7 +13,7 @@ import { edpPayments } from "../data/project-history";
 
 import { ProjectInvoiceLinks } from "./project-invoice-links";
 import { EdpPartidaSelector } from "./edp-partida-selector";
-import { settlementTotals } from "../data/edp-settlement";
+import { newEdpSettlement, settlementTotals } from "../data/edp-settlement";
 import { EdpSettlementFields } from "./edp-settlement";
 import { EdpProgramming } from "./edp-programming";
 
@@ -25,7 +25,7 @@ export function ProjectEdps({ project, allProjects, onSave, initialEdpId, cutoff
   const filtered = edps.filter(m => (filter === "Todos" || edpListStatus(m) === filter) && `${m.name} ${m.scope} ${project.invoiceLinks.filter(l => l.milestoneId === m.id).flatMap(l => l.tags || []).join(" ")}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es")));
   const selected = filtered.find(m => m.id === selectedId) || filtered[0];
   function add() {
-    const next: Milestone = { ...emptyMilestone(), name: "", scope: "Fabricación", settlement: { gross: 0, advanceRecovery: 0, retention: 0, taxMode: "iva19-ceec309" }, cashAmount: 0, edp: { stageKey: "fabricacion", metric: "m2", threshold: 1, documentOnly: true, status: "Previsto", triggeredDate: null, presentedDate: null, approvedDate: null, approvalEvidence: "" } };
+    const next: Milestone = { ...emptyMilestone(), name: "", scope: "Fabricación", settlement: newEdpSettlement(project), cashAmount: 0, edp: { stageKey: "fabricacion", metric: "m2", threshold: 1, documentOnly: true, status: "Previsto", triggeredDate: null, presentedDate: null, approvedDate: null, approvalEvidence: "" } };
     setFilter("Todos"); setQuery(""); setSelectedId(next.id); onEdit(next);
   }
   function canAttach(m: Milestone) { return !m.edp && !m.actualDate && ["EDP", "Anticipo"].includes(m.type); }
@@ -84,7 +84,11 @@ export function EdpForm({ project, milestone, invoices, dataState, onSave, onClo
   const firstEdpId = project.edpPlan?.sourceMilestoneId || project.milestones.find(m => m.type === "EDP")?.id || milestone.id;
   const isFirstEdp = milestone.type === "EDP" && milestone.id === firstEdpId;
   const [edpCount, setEdpCount] = useState(milestone.edpCount?.toString() || "");
-  const [draft, setDraft] = useState<Milestone>(() => firstDocument ? { ...milestone, name: "EDP 1 · avance presentado", source: "", settlement: { gross: 0, retention: 0, advanceRecovery: 0, taxMode: "iva19-ceec309" }, cashAmount: 0, edp: { ...milestone.edp!, status: "Previsto", documentOnly: true, presentedDate: null } } : milestone);
+  const [draft, setDraft] = useState<Milestone>(() => {
+    if (project.milestones.some(m => m.id === milestone.id)) return milestone;
+    return { ...milestone, settlement: newEdpSettlement(project), cashAmount: 0,
+      ...(firstDocument ? { name: "EDP 1 · avance presentado", source: "", edp: { ...milestone.edp!, status: "Previsto" as const, documentOnly: true, presentedDate: null } } : {}) };
+  });
 
 
   const reason = milestone.name ? "Estado de pago actualizado" : "Planificación de EDP según contrato";

@@ -55,7 +55,7 @@ export function ProjectForm({ project, onSave, onClose }: { project: Project; on
   </form></Editor>;
 }
 export function MilestoneForm({ milestone, currency, onSave, onClose }: { milestone: Milestone; currency: string; onSave: (m: Milestone, reason: string) => Promise<void>; onClose: () => void }) {
-  const [draft, setDraft] = useState(() => ({ ...milestone, scope: scopeForEditor(milestone) }));
+  const [draft, setDraft] = useState<Milestone>(() => ({ ...milestone, scope: milestone.type === "Anticipo" ? "General" : scopeForEditor(milestone) }));
   const reason = milestone.name ? "Hito actualizado" : "Hito agregado";
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const update = <K extends keyof Milestone>(key: K, value: Milestone[K]) => setDraft(m => ({ ...m, [key]: value }));
@@ -68,7 +68,7 @@ export function MilestoneForm({ milestone, currency, onSave, onClose }: { milest
   return <Editor title={milestone.name ? "Actualizar hito" : "Agregar hito"} onClose={onClose}><form className="project-form" onSubmit={submit}>
     <label className="project-field project-full">Nombre del hito<input value={draft.name} required maxLength={200} onChange={e => update("name", e.target.value)} /></label>
     <label className="project-field">Tipo<select disabled={Boolean(draft.stageKey) || ["Contrato", "Anticipo", "Retenciones"].includes(draft.type)} value={draft.type} onChange={e => update("type", e.target.value as Milestone["type"])}>{milestoneTypes.filter(t => t !== "Etapa" || draft.stageKey).map(t => <option key={t}>{t}</option>)}</select></label>
-    <label className="project-field">Alcance<select required={!(["Contrato", "Anticipo", "Retenciones"].includes(draft.type))} value={draft.scope === "General" || projectScopes.some(s => s === draft.scope) ? draft.scope : ""} onChange={e => update("scope", e.target.value as Milestone["scope"])}><option value="" disabled hidden>Selecciona un alcance</option>{["Contrato", "Anticipo", "Retenciones"].includes(draft.type) && <option value="General">Contrato completo</option>}{projectScopes.map(s => <option key={s}>{s}</option>)}</select></label>
+    <label className="project-field">Alcance<select required={!(["Contrato", "Anticipo", "Retenciones"].includes(draft.type))} value={draft.scope === "General" || projectScopes.some(s => s === draft.scope) ? draft.scope : ""} onChange={e => update("scope", e.target.value as Milestone["scope"])}>{draft.type !== "Anticipo" && <option value="" disabled hidden>Selecciona un alcance</option>}{["Contrato", "Anticipo", "Retenciones"].includes(draft.type) && <option value="General">Contrato completo</option>}{draft.type !== "Anticipo" && projectScopes.map(s => <option key={s}>{s}</option>)}</select></label>
     <label className="project-field">Inicio de referencia<input type="date" value={draft.startDate ?? ""} onChange={e => update("startDate", e.target.value || null)} /></label>
     <label className="project-field">Fecha prevista / compromiso vigente<input type="date" value={draft.forecastDate ?? ""} onChange={e => update("forecastDate", e.target.value || null)} /></label>
     <div className="project-note project-full">Base {milestone.baselineApproved ? "confirmada" : "propuesta"}: {shortDate(milestone.baselineDate)}. {milestone.baselineApproved ? "La base se conserva al reprogramar." : "Al confirmar, las fechas e importes previstos quedarán como referencia del cumplimiento."}</div>

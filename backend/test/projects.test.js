@@ -7,6 +7,23 @@ import { createProjectsRepository } from "../src/modules/projects/infrastructure
 import { createProjectsService } from "../src/modules/projects/application/projects-service.js";
 import { validateProject } from "../src/modules/projects/domain/project-validation.js";
 
+test("project EDP conditions persist independently of existing EDP amounts and rates", async t => {
+  const { service } = await setup(t);
+  const edpConditions = { reference: "Contrato / condiciones", retentionPercent: 3, recoveryPercent: 10 };
+  const settlement = { gross: 1000, advanceRecovery: 100, retention: 30, recoveryPercent: 10, retentionPercent: 3, taxMode: "iva19-ceec309" };
+  const saved = await service.save({ project: project({ edpConditions, milestones: [milestone({ settlement, cashAmount: 1008 })] }), expectedRevision: 0 });
+  assert.deepEqual(saved.edpConditions, edpConditions);
+  assert.equal(saved.milestones[0].settlement.recoveryPercent, 10);
+  const changed = await service.save({ project: { ...saved, edpConditions: { ...edpConditions, recoveryPercent: 0 } }, expectedRevision: saved.revision });
+  assert.deepEqual(changed.milestones, saved.milestones);
+  assert.equal((await service.list()).projects[0].edpConditions.recoveryPercent, 0);
+  assert(changed.history.at(-1).changes.some(c => c.includes("Condiciones EDP")));
+  for (const recoveryPercent of [-1, 101, "20", null, 98]) {
+    assert.throws(() => validateProject(project({ edpConditions: { ...edpConditions, recoveryPercent } })));
+  }
+  assert.throws(() => validateProject(project({ milestones: [milestone({ settlement: { ...settlement, recoveryPercent: 20 }, cashAmount: 1008 })] })), /porcentaje/);
+});
+
 test("declared EDP total persists and rejects invalid quantities", async t => {
   const { service } = await setup(t);
   const saved = await service.save({ project: project({ milestones: [milestone({ edpCount: 12 })] }), expectedRevision: 0 });

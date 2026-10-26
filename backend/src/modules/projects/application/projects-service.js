@@ -11,6 +11,7 @@ import { CRISSONT_ID, createCrissontSimulation } from "../domain/crissont-simula
 function changes(previous, next) {
   if (!previous) return ["Proyecto creado"];
   const result = [];
+  if (JSON.stringify(previous.edpConditions) !== JSON.stringify(next.edpConditions)) result.push(`Condiciones EDP actualizadas: retenciones ${next.edpConditions?.retentionPercent ?? 5}%, anticipo ${next.edpConditions?.recoveryPercent ?? 20}%. Referencia: ${next.edpConditions?.reference || "sin referencia"}.`);
   if (!previous.edpPlan && next.edpPlan) result.push(`Programación inicial basada en el primer EDP presentado: ${next.edpPlan.reference}. ${next.edpPlan.milestoneIds.length} EDP; total contractual ${next.edpPlan.contractAmount} ${next.edpPlan.currency}.`);
   for (const [key, label] of Object.entries({ lifecycle: "Estado contractual", nature: "Tipo de contrato", areaM2: "Superficie contratada (m²)", signedDate: "Fecha de firma" })) {
     if (previous[key] !== next[key]) result.push(`${label}: ${previous[key] ?? "sin dato"} → ${next[key] ?? "sin dato"}`);

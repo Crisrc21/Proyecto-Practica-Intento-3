@@ -20,7 +20,7 @@ export interface Milestone {
   baselineApproved: boolean; state: "Pendiente" | "En curso" | "Observado";
   evidence: string; source: string; notes: string;
   invoicingComplete?: boolean;
-  settlement?: { applyAdvanceRecovery?: boolean; applyRetention?: boolean; gross: number; advanceRecovery: number; retention: number; discounts?: number; penalties?: number; adjustments?: number; taxMode?: "iva19-ceec309" };
+  settlement?: { recoveryPercent?: number; retentionPercent?: number; applyAdvanceRecovery?: boolean; applyRetention?: boolean; gross: number; advanceRecovery: number; retention: number; discounts?: number; penalties?: number; adjustments?: number; taxMode?: "iva19-ceec309" };
   stageKey?: StageKey;
   edp?: EdpCondition;
   cashAmount: number | null; baselineCashAmount: number | null; cashDate: string | null; baselineCashDate: string | null;
@@ -28,6 +28,7 @@ export interface Milestone {
 export interface HouseEvent { id: string; house: number; stage: "despachos" | "montaje"; date: string | null; evidence: string }
 export interface SimulationInvoice { id: string; number: string; amountUF: number; issued: string; due: string; payments: { id: string; date: string; amountUF: number; reference: string }[] }
 export interface Project {
+  edpConditions?: { reference: string; retentionPercent: number; recoveryPercent: number };
   incomeDates?: Record<string, string>;
   edpPlan?: { sourceMilestoneId: string; reference: string; milestoneIds: string[]; contractAmount: number; currency: Currency };
   id: string; revision: number; name: string; customer: string; customerRut: string; location: string; owner: string;
