@@ -26,6 +26,7 @@ const instructions = [
   ["Gestionar hitos financieros", "Controla la firma, el anticipo y la liberación y cobro de retenciones. Descontar retenciones en un EDP es distinto de registrar el ingreso por su devolución final."]
 ];
 const planning = [
+  ["Consultar fechas en el EDP", "La lista y el detalle de Estados de pago muestran el cobro previsto vigente de Planificación financiera, incluidas las reprogramaciones guardadas. El bloque Fechas de cobro separa el vencimiento de cada factura de su cobro previsto. Si los saldos pendientes tienen distintas fechas, se indica Cobros en varias fechas; las facturas sin saldo se identifican por separado."],
   ["Elegir perspectiva", "Selecciona Semanal o Mensual. La matriz cubre desde el 1 de enero del año actual hasta el 31 de diciembre de 2027. Siguiente monto proyectado salta a los períodos con ingresos y, después del último, vuelve al primero."],
   ["Leer la matriz", "Proyectado muestra el ingreso según Fechas originales o Fechas vigentes. Real muestra pagos recibidos hasta la fecha de revisión. Los montos están en CLP. Un asterisco indica datos incompletos; los ingresos sin fecha se revisan en el registro inferior."],
   ["Consultar el detalle", "Pulsa una celda para abrir el pop-up del período y proyecto. Verás sus EDP y facturas, estado, monto, saldo y fechas. El registro de todos los ingresos permanece debajo de la matriz."],

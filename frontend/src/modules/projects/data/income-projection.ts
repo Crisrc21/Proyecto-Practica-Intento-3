@@ -10,6 +10,12 @@ export interface IncomeRow {
   original: string | null; date: string | null; total: number | null; pending: number | null;
   payments: { date: string; amount: number }[]; status: string; note: string; variance?: number | null; varianceNote?: string;
 }
+export function milestoneCollectionDates(rows: IncomeRow[], milestoneId: string) {
+  const items = rows.filter(row => row.milestoneId === milestoneId);
+  const pending = items.filter(row => row.pending !== 0);
+  const dates = [...new Set(pending.map(row => row.date).filter((date): date is string => Boolean(date)))].sort();
+  return { items, dates, missingDate: pending.some(row => !row.date), settled: items.length > 0 && pending.length === 0 };
+}
 export function incomeProjection(projects: Project[], invoices: FacturaCalculada[], state: DataState, cutoff: string): IncomeRow[] {
   return projects.filter(p => p.lifecycle !== "Potencial").flatMap(project => {
     const source = project.simulation ? project.simulation.invoices.map(i => ({ id:i.id, number:i.number, issued:i.issued, due:i.due, total:i.amountUF * project.simulation!.ufValue, payments:i.payments.map(p => ({date:p.date,amount:p.amountUF * project.simulation!.ufValue})), partial:false, cancelled:false })) : invoices.map(i => ({id:i.id,number:i.numero,issued:i.fechaEmision,due:i.fechaVencimiento,total:Math.max(0,i.monto - i.notasCredito.filter(n=>n.fecha<=cutoff).reduce((s,n)=>s+n.monto,0) + i.notasDebito.filter(n=>n.fecha<=cutoff).reduce((s,n)=>s+n.monto,0)),payments:i.pagos.map(p=>({date:p.fechaPago,amount:p.monto})),partial:Boolean("informacionParcial" in i && i.informacionParcial),cancelled:Boolean(i.anulada)}));

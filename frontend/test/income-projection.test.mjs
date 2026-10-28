@@ -4,10 +4,41 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 const source=await readFile(new URL("../src/modules/projects/data/income-projection.ts",import.meta.url),"utf8");
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {incomeProjection,projectionPeriods,plusTwoMonths,matrixProjected}=await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+const {incomeProjection,projectionPeriods,plusTwoMonths,matrixProjected,milestoneCollectionDates}=await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
 const m={id:"e",name:"EDP 1",type:"EDP",cashAmount:1000,invoicingComplete:true,source:"https://example.com/edp",edp:{presentedDate:"2026-01-31"}};
 const p={id:"p",currency:"CLP",milestones:[m],invoiceLinks:[{invoiceId:"i",milestoneId:"e"}]};
 const i={id:"i",numero:"4000",fechaEmision:"2026-02-01",fechaVencimiento:"2026-03-01",monto:1000,pagos:[{fechaPago:"2026-03-10",monto:200}],notasCredito:[],notasDebito:[]};
+test("EDP collection dates reuse planning overrides and preserve each invoice due date",()=>{
+ const second={...i,id:"j",numero:"4001",fechaVencimiento:"2026-04-01",pagos:[]};
+ const project={...p,invoiceLinks:[...p.invoiceLinks,{invoiceId:"j",milestoneId:"e"}],incomeDates:{"invoice:i":"2026-05-15","invoice:j":"2026-06-15"}};
+ const rows=incomeProjection([project],[i,second],"ready","2026-03-20");
+ const summary=milestoneCollectionDates(rows,"e");
+ assert.deepEqual(summary.dates,["2026-05-15","2026-06-15"]);
+ assert.deepEqual(summary.items.map(r=>r.original),["2026-03-01","2026-04-01"]);
+ assert.equal(summary.missingDate,false);assert.equal(summary.settled,false);
+ assert.deepEqual(milestoneCollectionDates(rows,"other").items,[]);
+ const restored=incomeProjection([{...project,incomeDates:{}}],[i,second],"ready","2026-03-20");
+ assert.deepEqual(milestoneCollectionDates(restored,"e").dates,["2026-03-01","2026-04-01"]);
+});
+test("collection summaries distinguish paid invoices, missing dates and a common date",()=>{
+ const rows=incomeProjection([p],[i],"ready","2026-03-20");
+ assert.deepEqual(milestoneCollectionDates([...rows,{...rows[0],key:"other",date:rows[0].date}],"e").dates,["2026-03-01"]);
+ assert.equal(milestoneCollectionDates([...rows,{...rows[0],key:"missing",date:null}],"e").missingDate,true);
+ const paid=rows.map(r=>({...r,pending:0}));
+ assert.equal(milestoneCollectionDates(paid,"e").settled,true);
+ assert.deepEqual(milestoneCollectionDates(paid,"e").dates,[]);
+ const pending=[...paid,{...rows[0],date:"2026-06-15"}];
+ assert.deepEqual(milestoneCollectionDates(pending,"e").dates,["2026-06-15"]);
+});
+test("unbilled collection dates follow EDP presentation and scheduled advance or retention dates",()=>{
+ for(const type of ["EDP","Anticipo","Retenciones"]) {
+  const project={...p,invoiceLinks:[],milestones:[{...m,type,cashDate:"2026-05-15"}]};
+  const rows=incomeProjection([project],[],"ready","2026-03-20");
+  assert.deepEqual(milestoneCollectionDates(rows,"e").dates,[type==="EDP"?"2026-03-31":"2026-05-15"]);
+  const moved=incomeProjection([{...project,incomeDates:{"edp:e":"2026-07-01"}}],[],"ready","2026-03-20");
+  assert.deepEqual(milestoneCollectionDates(moved,"e").dates,["2026-07-01"]);
+ }
+});
 for (const type of ["Anticipo", "Retenciones"]) {
  test(`${type}: projects the entered collection date without presentation or real payments`,()=>{
   const milestone={...m,type,source:"",edp:undefined,cashDate:"2026-05-15"};
