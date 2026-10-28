@@ -8,6 +8,39 @@ const {incomeProjection,projectionPeriods,plusTwoMonths,matrixProjected}=await i
 const m={id:"e",name:"EDP 1",type:"EDP",cashAmount:1000,invoicingComplete:true,source:"https://example.com/edp",edp:{presentedDate:"2026-01-31"}};
 const p={id:"p",currency:"CLP",milestones:[m],invoiceLinks:[{invoiceId:"i",milestoneId:"e"}]};
 const i={id:"i",numero:"4000",fechaEmision:"2026-02-01",fechaVencimiento:"2026-03-01",monto:1000,pagos:[{fechaPago:"2026-03-10",monto:200}],notasCredito:[],notasDebito:[]};
+for (const type of ["Anticipo", "Retenciones"]) {
+ test(`${type}: projects the entered collection date without presentation or real payments`,()=>{
+  const milestone={...m,type,source:"",edp:undefined,cashDate:"2026-05-15"};
+  const project={...p,invoiceLinks:[],milestones:[milestone]};
+  const rows=incomeProjection([project],[],"ready","2026-03-20");
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].status,"Previsto sin factura");
+  assert.equal(rows[0].original,"2026-05-15");
+  assert.equal(rows[0].date,"2026-05-15");
+  assert.equal(rows[0].pending,1000);
+  assert.deepEqual(rows[0].payments,[]);
+  const withPresentation=incomeProjection([{...project,milestones:[{...milestone,edp:m.edp,source:m.source}]}],[],"ready","2026-03-20");
+  assert.equal(withPresentation[0].date,"2026-05-15");
+  const moved=incomeProjection([{...project,incomeDates:{"edp:e":"2026-06-01"}}],[],"ready","2026-03-20");
+  assert.equal(moved[0].original,"2026-05-15");assert.equal(moved[0].date,"2026-06-01");
+  for(const incomplete of [{cashDate:null},{cashAmount:null}]) {
+   assert.equal(incomeProjection([{...project,milestones:[{...milestone,...incomplete,source:m.source,edp:m.edp}]}],[],"ready","2026-03-20").length,0);
+  }
+  const ufProject={...project,currency:"UF",ufValue:40000};
+  assert.equal(incomeProjection([ufProject],[],"ready","2026-03-20")[0].total,40000000);
+  assert.equal(incomeProjection([{...ufProject,ufValue:null}],[],"ready","2026-03-20")[0].total,null);
+ });
+ test(`${type}: invoice replaces estimate and only invoice payments count as real`,()=>{
+  const project={...p,milestones:[{...m,type,source:"",edp:undefined,cashDate:"2026-05-15"}],incomeDates:{"edp:e":"2026-06-01"}};
+  const rows=incomeProjection([project],[i],"ready","2026-03-20");
+  assert.equal(rows.length,1);assert.equal(rows[0].key,"invoice:i");
+  assert.equal(rows[0].date,"2026-03-01");assert.equal(rows[0].pending,800);
+  assert.deepEqual(rows[0].payments,[{date:"2026-03-10",amount:200}]);
+  const unavailable=incomeProjection([project],[],"ready","2026-03-20");
+  assert.equal(unavailable.length,1);assert.equal(unavailable[0].status,"Factura por verificar");
+  assert.equal(unavailable[0].total,null);
+ });
+}
 test("invoice projections preserve due dates, deduct payments and move only current balance",()=>{
  const rows=incomeProjection([{...p,incomeDates:{"invoice:i":"2026-04-15"}}],[i],"ready","2026-03-20");
  assert.equal(rows.length,1);assert.equal(rows[0].original,"2026-03-01");assert.equal(rows[0].date,"2026-04-15");assert.equal(rows[0].pending,800);

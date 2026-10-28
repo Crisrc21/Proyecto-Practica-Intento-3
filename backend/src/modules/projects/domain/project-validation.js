@@ -154,6 +154,7 @@ export function validateProject(input) {
       cashDate: date(m.cashDate, "cobro previsto"), edpCount: m.edpCount == null ? undefined : number(m.edpCount, "cantidad de EDP"),
       baselineCashDate: date(m.baselineCashDate, "cobro base")
     };
+    if (m.originalExpectedCashDate !== undefined) next.originalExpectedCashDate = date(m.originalExpectedCashDate, "cobro previsto originalmente");
     if (m.settlement != null) {
       const a = m.settlement;
       const adjustments = a.adjustments ?? 0;

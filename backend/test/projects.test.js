@@ -7,6 +7,19 @@ import { createProjectsRepository } from "../src/modules/projects/infrastructure
 import { createProjectsService } from "../src/modules/projects/application/projects-service.js";
 import { validateProject } from "../src/modules/projects/domain/project-validation.js";
 
+test("original expected EDP payment date persists separately from confirmed baseline and invoice dates", async t => {
+  const { service } = await setup(t);
+  const saved = await service.save({ project: project({ milestones: [milestone()] }), expectedRevision: 0 });
+  const updated = await service.save({ project: { ...saved, milestones: saved.milestones.map(m => ({ ...m, originalExpectedCashDate: "2026-01-20" })) }, expectedRevision: saved.revision });
+  const m = updated.milestones[0];
+  assert.equal(m.originalExpectedCashDate, "2026-01-20");
+  assert.equal(m.cashDate, saved.milestones[0].cashDate);
+  assert.equal(m.baselineCashDate, saved.milestones[0].baselineCashDate);
+  assert.equal((await service.list()).projects[0].milestones[0].originalExpectedCashDate, "2026-01-20");
+  assert(updated.history.at(-1).changes.some(c => c.includes("fecha de cobro prevista originalmente")));
+  assert.throws(() => validateProject(project({ milestones: [milestone({ originalExpectedCashDate: "2026-02-30" })] })), /Fecha/);
+});
+
 test("project EDP conditions persist independently of existing EDP amounts and rates", async t => {
   const { service } = await setup(t);
   const edpConditions = { reference: "Contrato / condiciones", retentionPercent: 3, recoveryPercent: 10 };

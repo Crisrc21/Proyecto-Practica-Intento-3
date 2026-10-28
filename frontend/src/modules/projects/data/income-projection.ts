@@ -28,7 +28,8 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
       const planned = m.cashAmount != null && factor ? m.cashAmount * factor : null;
       const presented = Boolean(m.edp?.presentedDate && m.edp.presentedDate<=cutoff || /^https?:\/\//i.test(m.source));
       const key = `edp:${m.id}`;
-      const original = m.edp?.presentedDate && m.edp.presentedDate<=cutoff ? plusTwoMonths(m.edp.presentedDate) : null;
+      const scheduledIncome = m.type === "Anticipo" || m.type === "Retenciones";
+      const original = scheduledIncome ? m.cashDate || null : m.edp?.presentedDate && m.edp.presentedDate<=cutoff ? plusTwoMonths(m.edp.presentedDate) : null;
       if (linked.length) {
         const invoiceRow = result.find(r => r.milestoneId === m.id && r.invoiceId);
         if (invoiceRow) {
@@ -39,9 +40,11 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
         continue;
       }
       const total = ids.length ? null : planned;
-      // Do not invent amounts for unpresented EDPs or add the invoice on top of the same EDP.
-      if (!presented && !ids.length) continue;
-      result.push({key,project,milestoneId:m.id,name:m.name,original,date:project.incomeDates?.[key] || original,total,pending:total,payments:[],status:ids.length?"Factura por verificar":"Presentado",note:!original?"Falta fecha de presentación; puedes definir la proyección.":"Presentación + 2 meses calendario."});
+      // Advances and retention releases use their own amount and expected collection date.
+      // Linked invoices still replace estimates and never create an additional income.
+      const eligible = scheduledIncome ? m.cashAmount != null && Boolean(m.cashDate) : presented;
+      if (!eligible && !ids.length) continue;
+      result.push({key,project,milestoneId:m.id,name:m.name,original,date:project.incomeDates?.[key] || original,total,pending:total,payments:[],status:ids.length?"Factura por verificar":scheduledIncome?"Previsto sin factura":"Presentado",note:scheduledIncome ? "Fecha esperada de cobro registrada." : !original?"Falta fecha de presentación; puedes definir la proyección.":"Presentación + 2 meses calendario."});
     }
     return result;
   });

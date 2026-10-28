@@ -33,6 +33,7 @@ const planning = [
 ];
 const rules = [
   "Sin factura: el EDP presentado se proyecta por su monto y con fecha de presentación + 2 meses calendario. Si falta la fecha, se señala para revisión y puedes asignar una fecha de proyección.",
+  "Anticipos y devolución de retenciones sin factura: se incorporan cuando tienen monto y fecha esperada de cobro registrados, con estado Previsto sin factura. Se usa esa fecha, sin sumar dos meses ni exigir presentación. Una reprogramación cambia la fecha vigente; al vincular facturas, estas reemplazan la estimación sin duplicar ingresos. Solo los pagos registrados cuentan como cobro real.",
   "Con factura: su monto sustituye la estimación del EDP y su vencimiento define la fecha original. Si hay varias facturas, cada una se proyecta por separado. No se agrega un remanente automático del EDP.",
   "La diferencia total facturado − EDP es informativa, puede ser positiva o negativa y no genera otro ingreso. Si falta la conversión, aparece por verificar. Para esta comparación, un EDP en UF utiliza la UF de proyección del proyecto.",
   "El saldo por cobrar es el monto facturado menos los pagos recibidos. Una reprogramación no acredita pago ni modifica el vencimiento original. Los importes de facturas consideran sus notas de crédito y débito al corte.",

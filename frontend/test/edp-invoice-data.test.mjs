@@ -7,6 +7,15 @@ const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind
 const { edpInvoiceData, withInvoiceDates } = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
 const project = { currency: "UF", invoiceLinks: [{ invoiceId: "i", milestoneId: "e" }], milestones: [{ id: "e", cashAmount: 50, source: "", edp: { documentOnly: true, status: "Previsto", presentedDate: null } }] };
 const invoice = { id: "i", numero: "4000", monto: 2000000, fechaEmision: "2026-09-10", fechaVencimiento: "2026-10-10" };
+
+test("invoice date updates preserve the manually recorded original expected payment date", () => {
+  const p = { ...project, milestones: [{ ...project.milestones[0], originalExpectedCashDate: "2026-09-30" }] };
+  const updated = withInvoiceDates(p, [invoice], "ready");
+  assert.equal(updated.milestones[0].originalExpectedCashDate, "2026-09-30");
+  assert.equal(updated.milestones[0].cashDate, "2026-10-10");
+  const rescheduled = withInvoiceDates(updated, [{ ...invoice, fechaVencimiento: "2026-11-01" }], "ready");
+  assert.equal(rescheduled.milestones[0].originalExpectedCashDate, "2026-09-30");
+});
 test("linked invoice supplies amount in CLP, issuance and due date without changing UF estimate", () => {
   const data = edpInvoiceData(project, "e", [invoice], "ready");
   assert.equal(data.total, 2000000); assert.equal(data.currency, "CLP");
