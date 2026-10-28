@@ -9,6 +9,8 @@ export interface IncomeRow {
   key: string; project: Project; milestoneId: string; name: string; invoiceId?: string;
   original: string | null; date: string | null; total: number | null; pending: number | null;
   payments: { date: string; amount: number }[]; status: string; note: string; variance?: number | null; varianceNote?: string;
+  invoiceCoverage?: { expected: number; verified: number; missing: string[] };
+  unavailableInvoice?: boolean;
 }
 export function milestoneCollectionDates(rows: IncomeRow[], milestoneId: string) {
   const items = rows.filter(row => row.milestoneId === milestoneId);
@@ -25,10 +27,18 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
       const available = Boolean(project.simulation) || state === "ready";
       const linked = available ? source.filter(i=>ids.includes(i.id) && i.issued<=cutoff && !i.cancelled) : [];
       let complete = available && ids.every(id=>source.some(i=>i.id===id && !i.partial));
+      const missing = ids.filter(id => !available || !source.some(i => i.id === id && !i.partial));
+      const invoiceCoverage = { expected: ids.length, verified: ids.length - missing.length,
+        missing: missing.map(id => available ? source.find(i => i.id === id)?.number || id : id) };
       for (const i of linked) {
         const key = `invoice:${i.id}`, payments = i.payments.filter(p=>p.date<=cutoff);
         const pending = i.partial ? null : Math.max(0,i.total - payments.reduce((s,p)=>s+p.amount,0));
-        result.push({key,project,milestoneId:m.id,name:`${m.name} · Factura ${i.number}`,invoiceId:i.id,original:i.due || null,date:project.incomeDates?.[key] || i.due || null,total:i.partial?null:i.total,pending,payments:i.partial?[]:payments,status:i.partial?"Por verificar":pending===0?"Cobrado":"Facturado",note:"Fecha original: vencimiento de factura."});
+        result.push({key,project,milestoneId:m.id,name:`${m.name} · Factura ${i.number}`,invoiceId:i.id,original:i.due || null,date:project.incomeDates?.[key] || i.due || null,total:i.partial?null:i.total,pending,payments:i.partial?[]:payments,status:i.partial?"Por verificar":pending===0?"Cobrado":"Facturado",note:"Fecha original: vencimiento de factura.",invoiceCoverage});
+      }
+      for (const id of missing.filter(id => !linked.some(i => i.id === id))) {
+        result.push({ key: `invoice:${id}`, project, milestoneId: m.id, name: `${m.name} · Factura (identificador ${id})`, invoiceId: id,
+          original: null, date: project.incomeDates?.[`invoice:${id}`] || null, total: null, pending: null, payments: [],
+          status: "Factura por verificar", note: "Datos no disponibles en CxC. No se infiere el monto ni el vencimiento.", invoiceCoverage, unavailableInvoice: true });
       }
       const factor = project.currency === "UF" ? project.simulation?.ufValue || project.ufValue : 1;
       const planned = m.cashAmount != null && factor ? m.cashAmount * factor : null;
@@ -36,10 +46,10 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
       const key = `edp:${m.id}`;
       const scheduledIncome = m.type === "Anticipo" || m.type === "Retenciones";
       const original = scheduledIncome ? m.cashDate || null : m.edp?.presentedDate && m.edp.presentedDate<=cutoff ? plusTwoMonths(m.edp.presentedDate) : null;
-      if (linked.length) {
+      if (linked.length || missing.length) {
         const invoiceRow = result.find(r => r.milestoneId === m.id && r.invoiceId);
         if (invoiceRow) {
-          invoiceRow.variance = complete && linked.length === ids.length && planned != null ? linked.reduce((sum, i) => sum + i.total, 0) - planned : null;
+          invoiceRow.variance = complete && planned != null && ids.every(id => source.some(i => i.id === id && i.issued <= cutoff)) ? linked.reduce((sum, i) => sum + i.total, 0) - planned : null;
           invoiceRow.varianceNote = project.currency === "UF" ? "Comparación informativa: facturas − EDP convertido con la UF de proyección del proyecto." : "Comparación informativa: total facturado − monto del EDP.";
         }
         // Linked invoices replace the EDP estimate, regardless of the difference or completion checkbox.
@@ -66,7 +76,7 @@ export function projectionPeriods(rows: IncomeRow[], mode: "weekly" | "monthly",
     const to=end && rawTo>end?end:rawTo;
     const inside=(d:string|null)=>Boolean(d && d>=from && d<=to);
     const expected=rows.filter(r=>inside(r.original)), current=rows.filter(r=>inside(r.date));
-    return {from,to,expected:expected.reduce((s,r)=>s+(r.total||0),0),pending:current.reduce((s,r)=>s+(r.pending||0),0),paid:rows.flatMap(r=>r.payments).filter(p=>inside(p.date)&&p.date<=cutoff).reduce((s,p)=>s+p.amount,0),unknown:expected.some(r=>r.total===null)||current.some(r=>r.pending===null),rows:rows.filter(r=>inside(r.original)||inside(r.date)||r.payments.some(p=>inside(p.date)))};
+    return {from,to,expected:expected.reduce((s,r)=>s+(r.total||0),0),pending:current.reduce((s,r)=>s+(r.pending||0),0),paid:rows.flatMap(r=>r.payments).filter(p=>inside(p.date)&&p.date<=cutoff).reduce((s,p)=>s+p.amount,0),unknown:rows.some(r=>r.invoiceCoverage?.missing.length)||expected.some(r=>r.total===null)||current.some(r=>r.pending===null),rows:rows.filter(r=>inside(r.original)||inside(r.date)||r.payments.some(p=>inside(p.date)))};
   });
 }
 

@@ -1,14 +1,20 @@
 import type { FacturaCalculada } from "../../accounts-receivable/types";
 import type { DataState, Project } from "../types";
 
-export function edpInvoiceData(project: Project, milestoneId: string, invoices: FacturaCalculada[], state: DataState) {
+export function edpInvoiceData(project: Project, milestoneId: string, invoices: FacturaCalculada[], state: DataState, cutoff = "9999-12-31") {
   const ids = project.invoiceLinks.filter(l => l.milestoneId === milestoneId).map(l => l.invoiceId);
   const source = project.simulation
-    ? project.simulation.invoices.map(i => ({ id: i.id, number: i.number, amount: i.amountUF, issued: i.issued, due: i.due, cancelled: false }))
-    : invoices.map(i => ({ id: i.id, number: i.numero, amount: i.monto, issued: i.fechaEmision, due: i.fechaVencimiento, cancelled: Boolean(i.anulada) }));
-  const available = (Boolean(project.simulation) || state === "ready") && ids.every(id => source.some(i => i.id === id));
-  const rows = available ? source.filter(i => ids.includes(i.id) && !i.cancelled) : [];
-  return { rows, available, linked: ids.length > 0, currency: project.simulation ? "UF" as const : "CLP" as const,
+    ? project.simulation.invoices.map(i => ({ id: i.id, number: i.number, amount: i.amountUF, issued: i.issued, due: i.due, cancelled: false, partial: false }))
+    : invoices.map(i => ({ id: i.id, number: i.numero, amount: Math.max(0, i.monto - (i.notasCredito || []).filter(n => n.fecha <= cutoff).reduce((s,n) => s+n.monto,0) + (i.notasDebito || []).filter(n => n.fecha <= cutoff).reduce((s,n) => s+n.monto,0)), issued: i.fechaEmision, due: i.fechaVencimiento, cancelled: Boolean(i.anulada), partial: Boolean("informacionParcial" in i && i.informacionParcial) }));
+  const accessible = Boolean(project.simulation) || state === "ready";
+  const missing = ids.filter(id => !accessible || !source.some(i => i.id === id && !i.partial));
+  const available = missing.length === 0;
+  const rows = accessible ? source.filter(i => ids.includes(i.id) && !i.cancelled && !i.partial && i.issued <= cutoff) : [];
+  const afterCutoff = accessible ? source.filter(i => ids.includes(i.id) && i.issued > cutoff) : [];
+  const comparable = available && afterCutoff.length === 0;
+  return { rows, available, comparable, missing, afterCutoff, expected: ids.length, verified: ids.length - missing.length,
+    knownTotal: rows.length ? rows.reduce((sum,i) => sum+i.amount,0) : null,
+    linked: ids.length > 0, currency: project.simulation ? "UF" as const : "CLP" as const,
     total: available && rows.length ? rows.reduce((sum, i) => sum + i.amount, 0) : null };
 }
 

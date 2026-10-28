@@ -8,6 +8,36 @@ const {incomeProjection,projectionPeriods,plusTwoMonths,matrixProjected,mileston
 const m={id:"e",name:"EDP 1",type:"EDP",cashAmount:1000,invoicingComplete:true,source:"https://example.com/edp",edp:{presentedDate:"2026-01-31"}};
 const p={id:"p",currency:"CLP",milestones:[m],invoiceLinks:[{invoiceId:"i",milestoneId:"e"}]};
 const i={id:"i",numero:"4000",fechaEmision:"2026-02-01",fechaVencimiento:"2026-03-01",monto:1000,pagos:[{fechaPago:"2026-03-10",monto:200}],notasCredito:[],notasDebito:[]};
+test("missing invoice marks known amounts partial without inventing the EDP remainder, date or payment",()=>{
+ const project={...p,milestones:[{...m,cashAmount:10000000}],invoiceLinks:[...p.invoiceLinks,{invoiceId:"j",milestoneId:"e"}]};
+ const first={...i,monto:4000000,pagos:[{fechaPago:"2026-03-10",monto:1000000}]};
+ const rows=incomeProjection([project],[first],"ready","2026-03-20");
+ assert.equal(rows.length,2);
+ assert.deepEqual(rows[0].invoiceCoverage,{expected:2,verified:1,missing:["j"]});
+ assert.equal(rows[0].total,4000000);assert.equal(rows[0].pending,3000000);assert.equal(rows[0].variance,null);
+ const missing=rows.find(r=>r.invoiceId==="j");
+ assert.equal(missing.total,null);assert.equal(missing.pending,null);assert.equal(missing.original,null);assert.equal(missing.date,null);assert.deepEqual(missing.payments,[]);
+ assert.equal(matrixProjected(rows,"2026-03-01","2026-03-31","current"),4000000);
+ assert.equal(projectionPeriods(rows,"monthly","2026-01-01",2026,"2026-03-20")[2].unknown,true);
+ const second={...i,id:"j",numero:"4001",monto:6000000,pagos:[]};
+ const recovered=incomeProjection([project],[first,second],"ready","2026-03-20");
+ assert.ok(recovered.every(r=>r.invoiceCoverage.missing.length===0));
+ assert.equal(recovered[0].variance,0);
+ assert.equal(projectionPeriods(recovered,"monthly","2026-01-01",2026,"2026-03-20")[2].unknown,false);
+ assert.equal(recovered.reduce((sum,r)=>sum+r.pending,0),9000000);
+ assert.equal(project.milestones[0].cashAmount,10000000);
+});
+test("partially loaded and unavailable CxC invoices stay unknown while cancelled invoices are not missing",()=>{
+ const project={...p,invoiceLinks:[...p.invoiceLinks,{invoiceId:"j",milestoneId:"e"}]};
+ const partial={...i,id:"j",numero:"4001",informacionParcial:true};
+ const rows=incomeProjection([project],[i,partial],"ready","2026-03-20");
+ assert.equal(rows.length,2);assert.deepEqual(rows[0].invoiceCoverage.missing,["4001"]);
+ assert.equal(rows[1].total,null);assert.deepEqual(rows[1].payments,[]);
+ const offline=incomeProjection([project],[i,partial],"error","2026-03-20");
+ assert.equal(offline.length,2);assert.ok(offline.every(r=>r.total===null && r.date===null && r.invoiceCoverage.verified===0));
+ const cancelled=incomeProjection([project],[i,{...partial,informacionParcial:false,anulada:true}],"ready","2026-03-20");
+ assert.equal(cancelled.length,1);assert.deepEqual(cancelled[0].invoiceCoverage.missing,[]);
+});
 test("EDP collection dates reuse planning overrides and preserve each invoice due date",()=>{
  const second={...i,id:"j",numero:"4001",fechaVencimiento:"2026-04-01",pagos:[]};
  const project={...p,invoiceLinks:[...p.invoiceLinks,{invoiceId:"j",milestoneId:"e"}],incomeDates:{"invoice:i":"2026-05-15","invoice:j":"2026-06-15"}};

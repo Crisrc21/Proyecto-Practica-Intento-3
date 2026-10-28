@@ -1,0 +1,44 @@
+.edp-invoice-summary,
+.edp-collection-section { margin: 24px; min-width: 0; }
+.project-form .edp-invoice-summary { margin: 0; }
+.edp-section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.edp-section-icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 1px solid var(--project-border); border-radius: 10px; background: var(--project-muted); color: var(--project-orange); }
+.edp-section-heading h3 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+.edp-section-heading p { margin: 3px 0 0; color: var(--project-secondary); font-size: 12px; line-height: 1.5; }
+.edp-comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.edp-metric { display: flex; flex-direction: column; gap: 9px; padding: 18px; border: 1px solid var(--project-border); border-radius: 12px; background: var(--project-muted); min-width: 0; }
+.edp-metric > span { font-size: 12px; color: var(--project-secondary); }
+.edp-metric > strong { font-size: clamp(18px, 1.8vw, 25px); letter-spacing: -.025em; line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.edp-metric > small { font-size: 11px; color: var(--project-secondary); margin-top: auto; }
+.edp-variance.needs-review { background: var(--project-soft); border-color: color-mix(in srgb, var(--project-orange) 45%, var(--project-border)); }
+.edp-variance.needs-review > strong,
+.edp-variance.needs-review > small { color: var(--project-orange); }
+.edp-comparison-note { display: flex; align-items: flex-start; gap: 9px; margin: 14px 0 20px; color: var(--project-secondary); font-size: 11px; line-height: 1.65; }
+.edp-comparison-note > svg { flex: none; margin-top: 2px; }
+.edp-comparison-note p { margin: 0; }
+.edp-invoice-summary .project-note,
+.edp-collection-section > .project-note { margin: 0 0 14px; padding: 0; border: 0; background: transparent; font-size: 12px; line-height: 1.6; }
+.project-date-strip.edp-invoice-dates,
+.project-date-strip.edp-collection-dates { display: grid; gap: 1px; margin: 12px 0 0; padding: 0; border: 1px solid var(--project-border); border-radius: 12px; overflow: hidden; background: var(--project-border); }
+.project-date-strip.edp-invoice-dates { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.project-date-strip.edp-collection-dates { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.edp-invoice-dates > div,
+.edp-collection-dates > div { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; padding: 16px 18px; border: 0; background: var(--project-muted); }
+.edp-invoice-dates > div > span,
+.edp-collection-dates > div > span { font-size: 11px; line-height: 1.5; color: var(--project-secondary); }
+.edp-invoice-dates > div > strong,
+.edp-collection-dates > div > strong { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.project-date-strip > .edp-expected-date { background: var(--project-surface); }
+.edp-expected-date > strong { color: var(--project-green); }
+.edp-collection-section { padding-top: 24px; border-top: 1px solid var(--project-border); }
+.edp-overdue { font-size: 10px; }
+@media (max-width: 1100px) {
+  .project-date-strip.edp-invoice-dates { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .edp-invoice-summary, .edp-collection-section { margin: 18px; }
+  .edp-comparison, .project-date-strip.edp-collection-dates { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .project-date-strip.edp-invoice-dates { grid-template-columns: 1fr; }
+}

@@ -8,6 +8,26 @@ const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind
 const { edpInvoiceData, withInvoiceDates } = await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
 const project = { currency: "UF", invoiceLinks: [{ invoiceId: "i", milestoneId: "e" }], milestones: [{ id: "e", cashAmount: 50, source: "", edp: { documentOnly: true, status: "Previsto", presentedDate: null } }] };
 const invoice = { id: "i", numero: "4000", monto: 2000000, fechaEmision: "2026-09-10", fechaVencimiento: "2026-10-10" };
+test("incomplete reconciliation preserves known invoices and clears warnings after recovery", () => {
+ const p={...project,invoiceLinks:[...project.invoiceLinks,{invoiceId:"j",milestoneId:"e"}]};
+ const data=edpInvoiceData(p,"e",[invoice],"ready");
+ assert.equal(data.available,false);assert.equal(data.total,null);assert.equal(data.knownTotal,2000000);
+ assert.equal(data.rows.length,1);assert.deepEqual(data.missing,["j"]);assert.equal(data.verified,1);assert.equal(data.expected,2);
+ const second={...invoice,id:"j",monto:6000000};
+ const restored=edpInvoiceData(p,"e",[invoice,second],"ready");
+ assert.equal(restored.total,8000000);assert.equal(restored.comparable,true);assert.deepEqual(restored.missing,[]);
+ const partial=edpInvoiceData(p,"e",[invoice,{...second,informacionParcial:true}],"ready");
+ assert.equal(partial.knownTotal,2000000);assert.equal(partial.total,null);assert.deepEqual(partial.missing,["j"]);
+ const offline=edpInvoiceData(p,"e",[invoice,second],"error");
+ assert.equal(offline.knownTotal,null);assert.equal(offline.rows.length,0);assert.equal(offline.verified,0);
+});
+test("reconciliation uses dated credit and debit notes and excludes future invoices", () => {
+ const adjusted={...invoice,notasCredito:[{fecha:"2026-09-12",monto:200000},{fecha:"2026-11-01",monto:100000}],notasDebito:[{fecha:"2026-09-15",monto:50000}]};
+ const data=edpInvoiceData(project,"e",[adjusted],"ready","2026-09-30");
+ assert.equal(data.knownTotal,1850000);
+ const historical=edpInvoiceData(project,"e",[adjusted],"ready","2026-09-01");
+ assert.equal(historical.comparable,false);assert.equal(historical.rows.length,0);assert.equal(historical.afterCutoff.length,1);assert.deepEqual(historical.missing,[]);
+});
 
 test("invoice date updates preserve the manually recorded original expected payment date", () => {
   const p = { ...project, milestones: [{ ...project.milestones[0], originalExpectedCashDate: "2026-09-30" }] };
