@@ -17,10 +17,8 @@ export function withInvoiceDates(project: Project, invoices: FacturaCalculada[],
     if (!m.edp?.documentOnly) return m;
     const data = edpInvoiceData(project, m.id, invoices, state);
     if (!data.available || !data.rows.length) return m;
-    const issued = data.rows.map(i => i.issued).filter(Boolean).sort()[0];
     const due = data.rows.map(i => i.due).filter(Boolean).sort().at(-1);
-    return { ...m, cashDate: due || null, source: m.source || data.rows.map(i => `Factura ${i.number}`).join(", "),
-      edp: { ...m.edp, presentedDate: issued || m.edp.presentedDate,
-        status: issued && m.edp.status !== "Aprobado" ? "Presentado" as const : m.edp.status } };
+    // Invoice issuance does not establish when the EDP was presented or approved.
+    return { ...m, cashDate: due || null };
   }) };
 }
