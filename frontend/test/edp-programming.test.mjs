@@ -33,6 +33,22 @@ test("financial batches repeat the amount and deductions, schedule dates and cre
   assert.equal(taxed.cashAmount, 870);
 });
 
+test("taxed batches retain the configured CEEC rate and matching total", () => {
+  for (const ceecPercent of [0, 2.5, 3.09]) {
+    const p = { ...project, edpConditions: { ceecPercent } };
+    const rows = [
+      ...buildFinancialEdpBatch(p, { ...financialBatch, taxMode: "iva19-ceec309" }, []),
+      ...buildEdpBatch(p, { ...batch, taxMode: "iva19-ceec309" }, [])
+    ];
+    for (const row of rows) {
+      const s = row.settlement;
+      const net = s.gross - s.advanceRecovery - s.retention;
+      assert.equal(s.ceecPercent, ceecPercent);
+      assert.equal(row.cashAmount, net + Math.round(net * .19) - Math.round(net * ceecPercent / 100));
+    }
+  }
+});
+
 test("financial programming rejects invalid amounts, counts, deductions and dates", () => {
   for (const patch of [
     { count: 0 }, { count: 1.5 }, { count: 451 }, { grossPerEdp: 0 }, { grossPerEdp: NaN },

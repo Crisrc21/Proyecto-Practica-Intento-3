@@ -65,6 +65,10 @@ export function validateProject(input) {
     const c = input.edpConditions;
     if (!c || typeof c !== "object" || Array.isArray(c)) fail("Condiciones EDP inválidas.");
     p.edpConditions = { reference: text(c.reference, "referencia de condiciones EDP", 2000), retentionPercent: number(c.retentionPercent, "porcentaje de retenciones"), recoveryPercent: number(c.recoveryPercent, "porcentaje de anticipo") };
+    if (c.ceecPercent !== undefined) {
+      p.edpConditions.ceecPercent = number(c.ceecPercent, "porcentaje CEEC");
+      if (p.edpConditions.ceecPercent > 100) fail("El porcentaje CEEC no puede superar el 100%.");
+    }
     if (p.edpConditions.retentionPercent + p.edpConditions.recoveryPercent > 100) fail("Los porcentajes de condiciones EDP no pueden superar juntos el 100%.");
   }
   if (!Number.isInteger(p.units)) fail("La cantidad de viviendas debe ser entera.");
@@ -160,7 +164,7 @@ export function validateProject(input) {
       const adjustments = a.adjustments ?? 0;
       if (typeof adjustments !== "number" || !Number.isFinite(adjustments) || Math.abs(adjustments) > 1e15) fail("El ajuste del EDP debe ser un número válido.");
       next.settlement = { gross: number(a.gross, "avance bruto"), advanceRecovery: number(a.advanceRecovery, "amortización de anticipo"), retention: number(a.retention, "retención"), discounts: number(a.discounts ?? 0, "descuentos"), penalties: number(a.penalties ?? 0, "multas"), adjustments };
-      for (const key of ["retentionPercent", "recoveryPercent"]) {
+      for (const key of ["retentionPercent", "recoveryPercent", "ceecPercent"]) {
         if (a[key] !== undefined) {
           next.settlement[key] = number(a[key], "porcentaje del EDP");
           if (next.settlement[key] > 100) fail("El porcentaje del EDP no puede superar el 100%.");
@@ -174,6 +178,10 @@ export function validateProject(input) {
         }
       }
       if (a.applyAdvanceRecovery === false && next.settlement.advanceRecovery !== 0 || a.applyRetention === false && next.settlement.retention !== 0) fail("Una devolución desactivada debe tener monto cero.");
+      if (a.ivaExempt !== undefined) {
+        if (typeof a.ivaExempt !== "boolean") fail("La selección de exención de IVA debe ser booleana.");
+        next.settlement.ivaExempt = a.ivaExempt;
+      }
       const net = next.settlement.gross - next.settlement.advanceRecovery - next.settlement.retention - next.settlement.discounts - next.settlement.penalties + adjustments;
       if (a.taxMode !== undefined && a.taxMode !== "iva19-ceec309") fail("El cálculo tributario del EDP no es válido.");
       let total = net;
@@ -183,9 +191,9 @@ export function validateProject(input) {
           if (a[rate] !== undefined && next.settlement[amount] !== (a[flag] === false ? 0 : Math.round(next.settlement.gross * a[rate] / 100))) fail("El descuento del EDP no coincide con su porcentaje guardado.");
         }
         const netRounded = Math.round(net);
-        total = netRounded + Math.round(netRounded * 0.19) - Math.round(netRounded * 0.0309);
+        total = netRounded + (a.ivaExempt ? 0 : Math.round(netRounded * 0.19)) - Math.round(netRounded * (a.ceecPercent ?? 3.09) / 100);
       }
-      if (next.cashAmount === null || net < 0 || Math.abs(total-next.cashAmount) > 0.011) fail(a.taxMode ? "El total bruto a facturar debe coincidir con el neto más IVA 19% menos CEEC 3,09%, redondeados sin decimales." : "El neto del EDP debe coincidir con bruto menos anticipo, retenciones, descuentos y multas, más ajustes.");
+      if (next.cashAmount === null || net < 0 || Math.abs(total-next.cashAmount) > 0.011) fail(a.taxMode ? "El total bruto a facturar debe coincidir con el neto más IVA 19% (o cero si está exento) menos el porcentaje CEEC del EDP, redondeados sin decimales." : "El neto del EDP debe coincidir con bruto menos anticipo, retenciones, descuentos y multas, más ajustes.");
     }
     if (m.stageKey !== undefined) {
       if (!stages.some(([key]) => key === m.stageKey) || stageKeys.has(m.stageKey)) fail("Etapa contractual inválida o repetida.");

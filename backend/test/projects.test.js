@@ -37,6 +37,24 @@ test("project EDP conditions persist independently of existing EDP amounts and r
   assert.throws(() => validateProject(project({ milestones: [milestone({ settlement: { ...settlement, recoveryPercent: 20 }, cashAmount: 1008 })] })), /porcentaje/);
 });
 
+test("CEEC conditions persist without rewriting existing EDP or hidden project data", async t => {
+  const { service } = await setup(t);
+  const settlement = { gross: 1000, advanceRecovery: 0, retention: 0, taxMode: "iva19-ceec309", ceecPercent: 2.5 };
+  const edpConditions = { reference: "Contrato", retentionPercent: 5, recoveryPercent: 20, ceecPercent: 2.5 };
+  const saved = await service.save({ project: project({ edpConditions, areaM2: 500, milestones: [milestone({ settlement, cashAmount: 1165 })] }), expectedRevision: 0 });
+  const changed = await service.save({ project: { ...saved, customerRut: "12345678-9", ufValue: 40000, edpConditions: { ...edpConditions, ceecPercent: 0 } }, expectedRevision: saved.revision });
+  const loaded = (await service.list()).projects[0];
+  assert.equal(loaded.edpConditions.ceecPercent, 0);
+  assert.equal(loaded.ufValue, 40000);
+  assert.equal(loaded.customerRut, "12345678-9");
+  assert.equal(loaded.areaM2, 500);
+  assert.deepEqual(changed.milestones, saved.milestones);
+  for (const ceecPercent of [-1, 101, "2.5", null]) {
+    assert.throws(() => validateProject(project({ edpConditions: { ...edpConditions, ceecPercent } })));
+    assert.throws(() => validateProject(project({ milestones: [milestone({ settlement: { ...settlement, ceecPercent }, cashAmount: 1165 })] })));
+  }
+});
+
 test("declared EDP total persists and rejects invalid quantities", async t => {
   const { service } = await setup(t);
   const saved = await service.save({ project: project({ milestones: [milestone({ edpCount: 12 })] }), expectedRevision: 0 });
@@ -69,6 +87,20 @@ test("EDP subtracts CEEC from net plus VAT and persists its calculation mode", a
   assert.throws(() => validateProject(project({ milestones: [milestone({ settlement, cashAmount: 75000 + 14250 + 2318 })] })), /CEEC/);
   assert.throws(() => validateProject(project({ milestones: [milestone({ settlement: { ...settlement, retention: 90000 }, cashAmount: 0 })] })), /CEEC/);
 });
+test("EDP IVA exemption persists, validates totals and can be disabled", async t => {
+  const { service } = await setup(t);
+  const settlement = { gross: 7727, advanceRecovery: 0, retention: 386, applyAdvanceRecovery: false, ivaExempt: true, taxMode: "iva19-ceec309" };
+  const saved = await service.save({ project: project({ milestones: [milestone({ settlement, cashAmount: 7114 })] }), expectedRevision: 0 });
+  const reloaded = (await service.list()).projects[0];
+  assert.equal(reloaded.milestones[0].settlement.ivaExempt, true);
+  assert.equal(reloaded.milestones[0].cashAmount, 7114);
+  assert.throws(() => validateProject(project({ milestones: [milestone({ settlement, cashAmount: 8509 })] })), /IVA/);
+  assert.throws(() => validateProject(project({ milestones: [milestone({ settlement: { ...settlement, ivaExempt: "true" }, cashAmount: 7114 })] })), /IVA/);
+  const updated = await service.save({ project: { ...saved, milestones: saved.milestones.map(m => ({ ...m, settlement: { ...m.settlement, ivaExempt: false }, cashAmount: 8509 })) }, expectedRevision: saved.revision });
+  assert.equal(updated.milestones[0].settlement.ivaExempt, false);
+  assert.equal(updated.milestones[0].cashAmount, 8509);
+});
+
 test("documentary EDP can be presented without creating physical progress", async t => {
   const { service } = await setup(t);
   const edp = { stageKey: "fabricacion", metric: "m2", threshold: 1, documentOnly: true, status: "Presentado", presentedDate: "2026-02-01", triggeredDate: null, approvedDate: null, approvalEvidence: "" };

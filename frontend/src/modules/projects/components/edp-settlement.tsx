@@ -26,7 +26,7 @@ export function EdpSettlementFields({ milestone, currency, onChange }: { milesto
   return <>
     {!s && <button type="button" className="project-button project-full" onClick={activate}>Completar montos del estado de pago</button>}
     {s && totals && <>
-      {!s.taxMode && <p className="project-note project-full">Este registro conserva su cálculo anterior. <button type="button" className="project-text-link" onClick={activate}>Aplicar IVA 19% y descuento CEEC 3,09%</button></p>}
+      {!s.taxMode && <p className="project-note project-full">Este registro conserva su cálculo anterior. <button type="button" className="project-text-link" onClick={activate}>Aplicar IVA 19% y descuento CEEC {(s.ceecPercent ?? 3.09).toLocaleString("es-CL")}%</button></p>}
       {fields.map(([key, label]) => {
         const flag = key === "advanceRecovery" ? "applyAdvanceRecovery" : "applyRetention";
         const optional = Boolean(s.taxMode && key !== "gross");
@@ -39,12 +39,16 @@ export function EdpSettlementFields({ milestone, currency, onChange }: { milesto
           <label className="project-field">{label}{optional ? key === "advanceRecovery" ? ` (${s.recoveryPercent ?? 20}%)` : ` (${s.retentionPercent ?? 5}%)` : ""} ({currency})<AmountInput required disabled={optional} value={s[key]} onChange={value => update(key, value ?? 0)} />{optional && !enabled && <span>No se descuenta en este EDP.</span>}</label>
         </div>;
       })}
+      <label className="project-check project-full"><input type="checkbox" checked={s.ivaExempt === true} onChange={e => {
+        const settlement = { ...s, ivaExempt: e.target.checked };
+        onChange({ settlement, cashAmount: settlementTotals(settlement).total });
+      }} />Excepto de IVA</label>
       {Boolean(s.discounts || s.penalties || s.adjustments) && <p className="project-note project-full">Otros ajustes conservados del documento: descuentos {amount(s.discounts || 0, currency)}, multas {amount(s.penalties || 0, currency)}, ajustes {amount(s.adjustments || 0, currency)}.</p>}
       <div className="project-full project-edp-settlement" aria-live="polite">
         <strong>Total neto a facturar: {amount(totals.net, currency)}</strong>
-        {s.taxMode && <><span>+ IVA (19%): {amount(totals.iva, currency)}</span><span>− CEEC (3,09%): {amount(totals.ceec, currency)}</span><strong>Total bruto a facturar: {amount(totals.total, currency)}</strong></>}
+        {s.taxMode && <><span>{s.ivaExempt ? "IVA (exento)" : "+ IVA (19%)"}: {amount(totals.iva, currency)}</span><span>− CEEC ({(s.ceecPercent ?? 3.09).toLocaleString("es-CL")}%): {amount(totals.ceec, currency)}</span><strong>Total bruto a facturar: {amount(totals.total, currency)}</strong></>}
       </div>
-      <p className="project-note project-full">Solo las devoluciones seleccionadas se descuentan del avance. IVA y CEEC se calculan sobre el total neto a facturar; el CEEC se resta. Los montos se redondean sin decimales.</p>
+      <p className="project-note project-full">Solo las devoluciones seleccionadas se descuentan del avance. {s.ivaExempt ? "Este EDP está exento de IVA. El CEEC se calcula sobre el total neto a facturar y se resta." : "IVA y CEEC se calculan sobre el total neto a facturar; el CEEC se resta."} Los montos se redondean sin decimales.</p>
       {totals.net < 0 && <p role="alert" className="project-error project-full">Las devoluciones no pueden superar el avance.</p>}
     </>}
   </>;

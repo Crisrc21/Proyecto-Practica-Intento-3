@@ -56,3 +56,5 @@
 .project-revenue-values{display:flex;flex-direction:column;align-items:flex-end;gap:5px;text-align:right;font-variant-numeric:tabular-nums}.project-revenue-values small{font-size:12px;font-weight:400;color:var(--project-secondary)}
 
 .project-stat>.project-edp-list-badges{justify-content:flex-start;gap:6px;margin-top:10px}
+
+.project-profile-section{border-bottom:1px solid var(--project-border);padding-bottom:20px;scroll-margin-top:20px}.project-profile-section h3{font-size:16px;margin-bottom:16px}.project-profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.project-profile-section>.project-check{margin-bottom:16px}.project-profile-section .project-footnote{margin-top:12px}@media(max-width:560px){.project-profile-fields{grid-template-columns:1fr}}

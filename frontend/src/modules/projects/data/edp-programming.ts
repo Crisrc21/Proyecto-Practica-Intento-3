@@ -33,7 +33,7 @@ export function buildFinancialEdpBatch(project: Project, batch: FinancialEdpBatc
   const advanceRecovery = rounding(gross * batch.recoveryPercent / 100);
   const net = rounding(gross - retention - advanceRecovery);
   if (gross <= 0 || net < 0) throw new Error("Revisa el monto y las devoluciones después del redondeo.");
-  const cashAmount = batch.taxMode ? net + Math.round(net * 0.19) - Math.round(net * 0.0309) : net;
+  const cashAmount = batch.taxMode ? net + Math.round(net * 0.19) - Math.round(net * (project.edpConditions?.ceecPercent ?? 3.09) / 100) : net;
   const ordinal = Math.max(existing.filter(m => m.type === "EDP").length, ...existing.filter(m => m.type === "EDP").map(m => Number(m.name.match(/^EDP\s*(?:N[.°ºo]*\s*)?(\d+)/i)?.[1] || 0)));
   return Array.from({ length: batch.count }, (_, index) => {
     const forecastDate = at(index * batch.intervalDays), cashDate = at(index * batch.intervalDays + batch.paymentDays);
@@ -42,7 +42,7 @@ export function buildFinancialEdpBatch(project: Project, batch: FinancialEdpBatc
       startDate: null, baselineDate: forecastDate, forecastDate, actualDate: null, baselineApproved: true,
       state: "Pendiente", evidence: "", source: "", notes: "Programación financiera desde el primer EDP presentado.",
       cashAmount, cashDate, baselineCashAmount: cashAmount, baselineCashDate: cashDate,
-      settlement: { gross, retention, advanceRecovery, discounts: 0, penalties: 0, adjustments: 0, ...(batch.taxMode ? { taxMode: batch.taxMode } : {}) },
+      settlement: { gross, retention, advanceRecovery, discounts: 0, penalties: 0, adjustments: 0, ...(batch.taxMode ? { taxMode: batch.taxMode, ceecPercent: project.edpConditions?.ceecPercent ?? 3.09 } : {}) },
       edp: { stageKey: "total", metric: "totalPct", threshold: 1, documentOnly: true, status: "Previsto", triggeredDate: null, presentedDate: null, approvedDate: null, approvalEvidence: "" }
     };
   });
@@ -98,7 +98,7 @@ export function buildEdpBatch(project: Project, batch: EdpBatch, existing: Miles
     // Las retenciones se registran como un EDP independiente de liberación.
     const retention = batch.taxMode ? rounding(gross * 0.05) : 0, advanceRecovery = rounding(gross * (batch.taxMode ? 20 : batch.recoveryPercent) / 100);
     const net = rounding(gross - advanceRecovery - retention);
-    const cashAmount = batch.taxMode ? net + Math.round(net * 0.19) - Math.round(net * 0.0309) : net;
+    const cashAmount = batch.taxMode ? net + Math.round(net * 0.19) - Math.round(net * (project.edpConditions?.ceecPercent ?? 3.09) / 100) : net;
     if (cashAmount < 0) fail("El redondeo de descuentos supera el bruto. Ajusta la distribución.");
     const threshold = Number((batch.from + Math.min(batch.remaining, (index + 1) * batch.perEdp)).toFixed(6));
     const forecastDate = at(index * batch.intervalDays), cashDate = at(index * batch.intervalDays + batch.paymentDays);
@@ -108,7 +108,7 @@ export function buildEdpBatch(project: Project, batch: EdpBatch, existing: Miles
       actualDate: null, baselineApproved: true, state: "Pendiente", evidence: "", source: "Programación desde el primer EDP presentado",
       notes: `Avance del período programado: ${Number(quantity.toFixed(6))}. Acumulado requerido: ${threshold}.`,
       cashAmount, cashDate, baselineCashAmount: cashAmount, baselineCashDate: cashDate,
-      settlement: { gross, retention, advanceRecovery, discounts: 0, penalties: 0, adjustments: 0, ...(batch.taxMode ? { taxMode: batch.taxMode } : {}) },
+      settlement: { gross, retention, advanceRecovery, discounts: 0, penalties: 0, adjustments: 0, ...(batch.taxMode ? { taxMode: batch.taxMode, ceecPercent: project.edpConditions?.ceecPercent ?? 3.09 } : {}) },
       edp: { stageKey: batch.stageKey, metric: batch.metric, threshold, status: "Previsto", triggeredDate: null, presentedDate: null, approvedDate: null, approvalEvidence: "" }
     };
   });

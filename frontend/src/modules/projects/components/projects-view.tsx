@@ -1,12 +1,12 @@
 import { latestRegisteredEdp } from "../data/edp-slots";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Building2, Ruler, CheckCircle2, CircleAlert, ClipboardList, FlaskConical, History, Plus, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeft, BookOpen, Building2, CheckCircle2, CircleAlert, ClipboardList, FlaskConical, History, Plus, RefreshCw, Wallet } from "lucide-react";
 import { navigateTo } from "@/app/navigation";
 import type { FacturaCalculada } from "@/modules/accounts-receivable/types";
 import type { DataState, Milestone, Project } from "../types";
 import { createCrissontSimulation, deleteProject, loadProjects, saveProject } from "../data/projects-api";
 import { amount, emptyProject, shortDate, todayISO } from "../data/project-calculations";
-import { Editor, MilestoneForm, ProjectForm } from "./project-forms";
+import { Editor, MilestoneForm } from "./project-forms";
 import { MilestoneBadge } from "./project-timeline";
 import { ProjectCash } from "./project-cash";
 import { EdpForm, ProjectEdps, EdpListBadges } from "./project-workflow";
@@ -39,7 +39,6 @@ export function ProjectsView({ search, invoices, dataState, onRefreshAccounts }:
     } catch (e) { setDeleteError(e instanceof Error ? e.message : "No se pudo eliminar el proyecto."); }
     finally { setDeleting(false); }
   }
-  const [projectEditor, setProjectEditor] = useState<Project | null>(null);
   const [milestoneEditor, setMilestoneEditor] = useState<Milestone | null>(null);
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const selectedId = params.get("proyecto");
@@ -85,7 +84,7 @@ export function ProjectsView({ search, invoices, dataState, onRefreshAccounts }:
   if (selectedId && !selected) return <div className="projects-module"><div className="project-empty"><h1>Proyecto no encontrado</h1><button className="project-button" onClick={() => changeView("resumen", null)}>Volver a proyectos</button></div></div>;
   return <div className="projects-module">
     {selected && <button className="project-back" onClick={() => changeView("resumen", null)}><ArrowLeft size={15} />Todos los proyectos</button>}
-    <header className="project-page-heading"><div><span className="project-eyebrow">CONTROL DE GESTIÓN</span><h1>{selected ? selected.name : "Gestión de proyectos"}</h1><p>{selected ? `${selected.customer || "Cliente por definir"} · ${selected.location || "Ubicación por definir"}` : "Proyecta ingresos, revisa la caja semanal y compara el cobro real al cierre del mes."}</p></div><div className="project-actions"><button className="project-button" onClick={reload} aria-label="Actualizar proyectos"><RefreshCw size={15} />Actualizar</button>{!selected && <button className="project-button" disabled={busy} onClick={createSimulation}><FlaskConical size={16} />Crear simulación</button>}{selected && <button className="project-button" onClick={() => setProjectEditor(selected)}>Condiciones y alcances</button>}{view !== "manual" && <button className="project-button primary" onClick={() => setProfileEditor(selected || emptyProject())}>{selected ? <ClipboardList size={16} /> : <Plus size={16} />}{selected ? "Ver datos del proyecto" : "Agregar proyecto"}</button>}</div></header>
+    <header className="project-page-heading"><div><span className="project-eyebrow">CONTROL DE GESTIÓN</span><h1>{selected ? selected.name : "Gestión de proyectos"}</h1><p>{selected ? `${selected.customer || "Cliente por definir"} · ${selected.location || "Ubicación por definir"}` : "Proyecta ingresos, revisa la caja semanal y compara el cobro real al cierre del mes."}</p></div><div className="project-actions"><button className="project-button" onClick={reload} aria-label="Actualizar proyectos"><RefreshCw size={15} />Actualizar</button>{!selected && <button className="project-button" disabled={busy} onClick={createSimulation}><FlaskConical size={16} />Crear simulación</button>}{view !== "manual" && <button className="project-button primary" onClick={() => setProfileEditor(selected || emptyProject())}>{selected ? <ClipboardList size={16} /> : <Plus size={16} />}{selected ? "Ficha del proyecto" : "Agregar proyecto"}</button>}</div></header>
     <div className="project-toolbar"><div className="project-view-tabs" role="group" aria-label="Vistas de proyectos">{([
       ["resumen", selected ? "1 · Vista general" : "Proyectos", Building2], ...(selected ? [["edps", "2 · Estados de pago", ClipboardList]] : []), ["cobros", "Planificación financiera", Wallet], ["manual", "Manual", BookOpen], ...(selected ? [["historial", "Historial", History]] : [])
     ] as const).map(([id,label,Icon]) => <button key={id as string} className={view === id ? "is-active" : ""} onClick={() => changeView(id as View, id === "manual" ? null : selectedId)} aria-pressed={view === id}><Icon size={16} />{label as string}</button>)}</div>{view !== "manual" && (selected || view !== "resumen") && <div className="project-cutoff-controls"><label className="project-field compact">Fecha de revisión<input type="date" max={todayISO()} value={cutoff} onChange={e => { if (e.target.value) setCutoff(e.target.value); }} /></label></div>}</div>
@@ -93,9 +92,7 @@ export function ProjectsView({ search, invoices, dataState, onRefreshAccounts }:
     {actionError && <p role="alert" className="project-error">{actionError}</p>}
     {selected && view === "resumen" && <div className="project-stats">
       <Stat label="Total contrato" value={amount(selected.contractAmount == null ? null : Math.round(selected.contractAmount), selected.currency)} context="Monto total contratado" icon={Wallet} />
-      <Stat label="Viviendas por contrato" value={selected.units.toLocaleString("es-CL")} context="Cantidad de viviendas contratadas" icon={Building2} />
       <div className="project-stat"><div><span>EDP actual</span><ClipboardList size={18} /></div><strong>{currentEdp ? currentEdp.name.match(/\bEDP\s*\d+/i)?.[0] || currentEdp.name : "—"}</strong><small>{currentEdp ? `${currentEdp.name} · ${amount(currentEdp.cashAmount, selected.currency)}` : "No hay EDP registrado al corte"}</small>{currentEdp && <EdpListBadges project={selected} milestone={currentEdp} invoices={invoices} dataState={dataState} cutoff={cutoff} />}</div>
-      <Stat label="m² totales" value={selected.areaM2 == null ? "—" : `${selected.areaM2.toLocaleString("es-CL")} m²`} context="Superficie total contratada" icon={Ruler} />
     </div>}
     {!selected && view !== "manual" && <div className="project-search-row"><input type="search" aria-label="Buscar proyecto" placeholder="Buscar por proyecto, mandante o ubicación" value={query} onChange={e => setQuery(e.target.value)} /><span>{view === "resumen" ? matches.length : filtered.length} {(view === "resumen" ? matches.length : filtered.length) === 1 ? "proyecto" : "proyectos"}</span></div>}
     {view === "manual" && <ProjectManual />}
@@ -108,7 +105,6 @@ export function ProjectsView({ search, invoices, dataState, onRefreshAccounts }:
     {view !== "manual" && (selected || view !== "resumen") && <p className="project-page-footnote">Corte: {shortDate(cutoff)}. El corte filtra cumplimiento y pagos; las fechas previstas muestran la última planificación guardada.</p>}
     {deleteTarget && <Editor title="Eliminar proyecto" onClose={() => { if (!deleting) setDeleteTarget(null); }}><div className="project-form"><p className="project-full">¿Eliminar el proyecto <strong>{deleteTarget.name}</strong> ({deleteTarget.customer || "Mandante por definir"})?</p><p className="project-note project-full">Se retirarán de Gestión de proyectos sus datos, avances, EDP, proyecciones y relaciones con facturas. Las facturas y los pagos originales de CxC se conservarán.</p>{deleteError && <p role="alert" className="project-error project-full">{deleteError}</p>}<div className="project-form-actions project-full"><button type="button" autoFocus disabled={deleting} className="project-button" onClick={() => setDeleteTarget(null)}>Cancelar</button><button type="button" disabled={deleting} className="project-button project-negative" onClick={confirmDelete}>{deleting ? "Eliminando…" : "Eliminar proyecto"}</button></div></div></Editor>}
     {profileEditor && <ProjectProfile key={`${profileEditor.id}-${profileEditor.revision}`} project={profileEditor} onSave={persist} onClose={() => setProfileEditor(null)} onOpen={() => changeView("resumen", profileEditor.id)} />}
-    {projectEditor && projectEditor.lifecycle !== "Potencial" && <ProjectForm project={projectEditor} onClose={()=>setProjectEditor(null)} onSave={persist} />}
     {milestoneEditor?.edp && selected && <EdpForm invoices={invoices} dataState={dataState} project={selected} milestone={milestoneEditor} onClose={()=>setMilestoneEditor(null)} onSave={(m,reason)=>persist({ ...selected, milestones: selected.milestones.some(item=>item.id===m.id) ? selected.milestones.map(item=>item.id===m.id?m:item) : [...selected.milestones,m] },reason)} />}
     {milestoneEditor && selected && !milestoneEditor.edp && <MilestoneForm milestone={milestoneEditor} currency={selected.currency} onClose={()=>setMilestoneEditor(null)} onSave={(m,reason)=>persist({ ...selected, milestones: selected.milestones.some(item=>item.id===m.id) ? selected.milestones.map(item=>item.id===m.id?m:item) : [...selected.milestones,m] },reason)} />}
   </div>;
