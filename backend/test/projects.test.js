@@ -82,6 +82,25 @@ test("saving and editing retention preserves twelve advance EDP and cash dates",
   assert.equal((await service.list()).projects[0].milestones[1].expectedReceiptDate, "2026-06-01");
 });
 
+test("presenting and correcting EDP automatically persists current retentions without changing dates or baseline", async t => {
+  const { service, repo } = await setup(t);
+  const edp = (id, retention) => milestone({ id, source: "Documento", settlement: { gross: 1000, retention, advanceRecovery: 0 }, cashAmount: 1000 - retention,
+    edp: { stageKey: "fabricacion", metric: "m2", threshold: 1, documentOnly: true, status: "Presentado", presentedDate: "2026-01-20", triggeredDate: null, approvedDate: null, approvalEvidence: "" } });
+  const retention = milestone({ id: "ret", type: "Retenciones", cashAmount: 200, baselineCashAmount: 200, expectedReceiptDate: "2026-12-01" });
+  const first = await service.save({ project: project({ milestones: [edp("e1", 200), retention] }), expectedRevision: 0 });
+  const second = await service.save({ project: { ...first, milestones: [...first.milestones, edp("e2", 300)] }, expectedRevision: first.revision });
+  const result = second.milestones.find(m => m.id === "ret");
+  assert.equal(result.cashAmount, 500);
+  assert.equal(result.baselineCashAmount, 200);
+  assert.equal(result.cashDate, retention.cashDate);
+  assert.equal(result.expectedReceiptDate, retention.expectedReceiptDate);
+  assert.equal((await repo.read()).projects[0].milestones.find(m => m.id === "ret").cashAmount, 500);
+  assert(second.history.at(-1).changes.some(c => c.includes("monto de cobro") && c.includes("500")));
+  const third = await service.save({ project: { ...second, milestones: second.milestones.map(m => m.id === "e2" ? { ...m, settlement: { ...m.settlement, retention: 0, applyRetention: false }, cashAmount: 1000 } : m) }, expectedRevision: second.revision });
+  assert.equal(third.milestones.find(m => m.id === "ret").cashAmount, 200);
+  assert.equal((await service.list()).projects[0].milestones.find(m => m.id === "ret").cashAmount, 200);
+});
+
 test("declared EDP total persists and rejects invalid quantities", async t => {
   const { service } = await setup(t);
   const saved = await service.save({ project: project({ milestones: [milestone({ edpCount: 12 })] }), expectedRevision: 0 });

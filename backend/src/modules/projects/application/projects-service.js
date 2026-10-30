@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { HttpError } from "../../../shared/errors/http-error.js";
 import { preserveBaselines, validateProject } from "../domain/project-validation.js";
 import { applyWorkflow } from "../domain/project-workflow.js";
+import { synchronizeRetentions } from "../domain/retention-settlement.js";
 import { preserveEdpPlan } from "../domain/edp-plan.js";
 
 import { preserveOperations, withOperations } from "../domain/project-operations.js";
@@ -54,12 +55,12 @@ export function createProjectsService(repository) {
   return {
     async list() {
       const data = await repository.read();
-      return { projects: data.projects.map(withOperations), integration: { provider: "Microsoft 365", status: "not_connected" } };
+      return { projects: data.projects.map(p => withOperations(synchronizeRetentions(p))), integration: { provider: "Microsoft 365", status: "not_connected" } };
     },
     async createSimulation() {
       const data = await repository.read();
       const existing = data.projects.find(p => p.id === CRISSONT_ID);
-      if (existing) return withOperations(existing);
+      if (existing) return withOperations(synchronizeRetentions(existing));
       try { return await this.save({ project: createCrissontSimulation(), expectedRevision: 0, reason: "Simulación Los Crissont creada con 18 facturas ficticias y cobro cero" }); }
       catch (error) { if (error.statusCode === 409 || error.status === 409) { const current = (await repository.read()).projects.find(p => p.id === CRISSONT_ID); if (current) return withOperations(current); } throw error; }
     },
@@ -76,7 +77,7 @@ export function createProjectsService(repository) {
     },
     async save(payload) {
       if (!payload || !Number.isInteger(payload.expectedRevision) || payload.expectedRevision < 0) throw new HttpError(400, "Falta la versión del proyecto.");
-      const project = validateProject(payload.project);
+      const project = synchronizeRetentions(validateProject(payload.project));
       const reason = typeof payload.reason === "string" ? payload.reason.trim() : "";
       if (reason.length > 1000) throw new HttpError(400, "El detalle del registro supera los 1.000 caracteres.");
       return repository.transaction(data => {

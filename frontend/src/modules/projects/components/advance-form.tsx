@@ -29,7 +29,7 @@ export function AdvanceForm({ project, milestone, cutoff, onSave, onClose }: {
     <h3 className="project-full">Datos anticipo</h3>
     <label className="project-field project-full">Nombre<input required maxLength={200} value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} /></label>
     <label className="project-field">Monto anticipo pactado ({project.currency})<AmountInput required value={draft.cashAmount} onChange={cashAmount => setDraft(d => ({ ...d, cashAmount }))} /></label>
-    <label className="project-field">Fecha esperada de recepción<input type="date" value={draft.expectedReceiptDate ?? ""} onChange={e => setDraft(d => ({ ...d, expectedReceiptDate: e.target.value || null }))} /><span>Informativa. No modifica las fechas de las facturas ni la programación de cobros.</span></label>
+    <label className="project-field">Fecha esperada de recepción<input type="date" value={draft.expectedReceiptDate ?? ""} onChange={e => setDraft(d => ({ ...d, expectedReceiptDate: e.target.value || null }))} /><span>Se usa para proyectar el ingreso sin factura. Al vincular facturas, se usan sus vencimientos o fechas reprogramadas.</span></label>
     <label className="project-field project-full">Observaciones<textarea rows={3} maxLength={4000} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} /></label>
     <h3 className="project-full">Devolución</h3>
     <p className="project-note project-full">El anticipo se considera cobrado cuando los pagos de las facturas vinculadas cubren el monto pactado y esas facturas están pagadas. Para contratos en UF, la comparación con pagos en pesos utiliza la UF de proyección configurada en la ficha del proyecto.</p>

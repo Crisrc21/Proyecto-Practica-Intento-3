@@ -42,10 +42,11 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
       }
       const factor = project.currency === "UF" ? project.simulation?.ufValue || project.ufValue : 1;
       const planned = m.cashAmount != null && factor ? m.cashAmount * factor : null;
-      const presented = Boolean(m.edp?.presentedDate && m.edp.presentedDate<=cutoff || /^https?:\/\//i.test(m.source));
+      const presented = Boolean(m.edp?.presentedDate && m.edp.presentedDate <= cutoff);
       const key = `edp:${m.id}`;
       const scheduledIncome = m.type === "Anticipo" || m.type === "Retenciones";
-      const original = scheduledIncome ? m.cashDate || null : m.edp?.presentedDate && m.edp.presentedDate<=cutoff ? plusTwoMonths(m.edp.presentedDate) : null;
+      const expectedReceipt = m.expectedReceiptDate === undefined ? m.cashDate : m.expectedReceiptDate;
+      const original = scheduledIncome ? expectedReceipt || null : m.edp?.presentedDate && m.edp.presentedDate<=cutoff ? plusTwoMonths(m.edp.presentedDate) : null;
       if (linked.length || missing.length) {
         const invoiceRow = result.find(r => r.milestoneId === m.id && r.invoiceId);
         if (invoiceRow) {
@@ -58,7 +59,7 @@ export function incomeProjection(projects: Project[], invoices: FacturaCalculada
       const total = ids.length ? null : planned;
       // Advances and retention releases use their own amount and expected collection date.
       // Linked invoices still replace estimates and never create an additional income.
-      const eligible = scheduledIncome ? m.cashAmount != null && Boolean(m.cashDate) : presented;
+      const eligible = scheduledIncome ? m.cashAmount != null && Boolean(expectedReceipt) : presented;
       if (!eligible && !ids.length) continue;
       result.push({key,project,milestoneId:m.id,name:m.name,original,date:project.incomeDates?.[key] || original,total,pending:total,payments:[],status:ids.length?"Factura por verificar":scheduledIncome?"Previsto sin factura":"Presentado",note:scheduledIncome ? "Fecha esperada de cobro registrada." : !original?"Falta fecha de presentación; puedes definir la proyección.":"Presentación + 2 meses calendario."});
     }

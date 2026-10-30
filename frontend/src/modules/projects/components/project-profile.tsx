@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Project } from "../types";
 import { todayISO } from "../data/project-calculations";
 import { Editor, SaveFooter } from "./project-forms";
+import { AmountInput } from "./amount-input";
 
 export function ProjectForm({ project, onSave, onClose, onOpen, initialSection }: {
   project: Project; onSave: (p: Project, reason: string) => Promise<void>;
@@ -50,6 +51,7 @@ export function ProjectForm({ project, onSave, onClose, onOpen, initialSection }
       {signed && <div className="project-profile-fields">
         <label className="project-field">Fecha de firma<input type="date" required max={project.simulation?.asOf || todayISO()} value={draft.signedDate ?? ""} onChange={e => update("signedDate", e.target.value || null)} /></label>
         <label className="project-field">Tipo de contrato<select required value={draft.nature ?? ""} onChange={e => setDraft(p => ({ ...p, nature: e.target.value as Project["nature"] || null, includedWorks: e.target.value === "llave_en_mano" ? p.includedWorks || [] : [] }))}><option value="">Selecciona el tipo de contrato</option><option value="llave_en_mano">Completo</option><option value="fabricacion_montaje">Fabricación y Montaje</option></select></label>
+        <label className="project-field project-full">Monto total del contrato ({draft.currency}), IVA incluido<AmountInput value={draft.contractAmount} onChange={value => update("contractAmount", value)} /><span>Monto total contratado en la moneda del proyecto.</span></label>
         <label className="project-field">Fecha inicio proyecto<input type="date" value={draft.startDate ?? ""} onChange={e => update("startDate", e.target.value || null)} /></label>
         <label className="project-field">Fecha término proyecto<input type="date" min={draft.startDate || undefined} value={draft.endDate ?? ""} onChange={e => update("endDate", e.target.value || null)} /></label>
       </div>}

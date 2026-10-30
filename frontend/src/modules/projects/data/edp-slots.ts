@@ -17,13 +17,8 @@ export function edpSlots(project: Project): Milestone[] {
   return result.sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name, "es", { numeric: true }));
 }
 
-export function edpListStatus(m: Milestone) {
-  try {
-    const link = new URL(m.source.trim());
-    return ["http:", "https:"].includes(link.protocol) ? "Presentado" : "En proceso";
-  } catch {
-    return "En proceso";
-  }
+export function edpListStatus(m: Milestone, cutoff?: string) {
+  return m.edp?.presentedDate && (!cutoff || m.edp.presentedDate <= cutoff) ? "Presentado" : "En proceso";
 }
 
 export function latestRegisteredEdp(project: Project, cutoff: string) {

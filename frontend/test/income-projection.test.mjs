@@ -8,6 +8,16 @@ const {incomeProjection,projectionPeriods,plusTwoMonths,matrixProjected,mileston
 const m={id:"e",name:"EDP 1",type:"EDP",cashAmount:1000,invoicingComplete:true,source:"https://example.com/edp",edp:{presentedDate:"2026-01-31"}};
 const p={id:"p",currency:"CLP",milestones:[m],invoiceLinks:[{invoiceId:"i",milestoneId:"e"}]};
 const i={id:"i",numero:"4000",fechaEmision:"2026-02-01",fechaVencimiento:"2026-03-01",monto:1000,pagos:[{fechaPago:"2026-03-10",monto:200}],notasCredito:[],notasDebito:[]};
+
+test("unbilled presentation requires a date at cutoff rather than a URL", () => {
+  const rows = milestone => incomeProjection([{ ...p, invoiceLinks: [], milestones: [milestone] }], [], "ready", "2026-02-01");
+  assert.equal(rows({ ...m, edp: { presentedDate: null } }).length, 0);
+  assert.equal(rows({ ...m, edp: { presentedDate: "2026-02-02" } }).length, 0);
+  const presented = rows({ ...m, source: "Documento entregado", edp: { presentedDate: "2026-02-01" } });
+  assert.equal(presented.length, 1);
+  assert.equal(presented[0].status, "Presentado");
+  assert.equal(presented[0].original, "2026-04-01");
+});
 test("missing invoice marks known amounts partial without inventing the EDP remainder, date or payment",()=>{
  const project={...p,milestones:[{...m,cashAmount:10000000}],invoiceLinks:[...p.invoiceLinks,{invoiceId:"j",milestoneId:"e"}]};
  const first={...i,monto:4000000,pagos:[{fechaPago:"2026-03-10",monto:1000000}]};
@@ -70,6 +80,27 @@ test("unbilled collection dates follow EDP presentation and scheduled advance or
  }
 });
 for (const type of ["Anticipo", "Retenciones"]) {
+ test(`${type}: expected receipt drives unbilled projection but never overrides invoice dates`, () => {
+  const milestone = { ...m, type, edp: undefined, source: "", expectedReceiptDate: "2026-11-15", cashDate: null };
+  const project = { ...p, milestones: [milestone], invoiceLinks: [] };
+  const rows = incomeProjection([project], [], "ready", "2026-03-20");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].date, "2026-11-15");
+  assert.equal(rows[0].total, 1000);
+  assert.equal(rows[0].status, "Previsto sin factura");
+  assert.deepEqual(rows[0].payments, []);
+  const legacyDate = { ...project, milestones: [{ ...milestone, cashDate: "2026-05-01" }] };
+  assert.equal(incomeProjection([legacyDate], [], "ready", "2026-03-20")[0].date, "2026-11-15");
+  assert.equal(incomeProjection([{ ...legacyDate, milestones: [{ ...legacyDate.milestones[0], expectedReceiptDate: null }] }], [], "ready", "2026-03-20").length, 0);
+  const linked = { ...project, invoiceLinks: p.invoiceLinks, incomeDates: { "invoice:i": "2026-04-15", "edp:e": "2026-12-01" } };
+  const invoiced = incomeProjection([linked], [i], "ready", "2026-03-20");
+  assert.equal(invoiced.length, 1);
+  assert.equal(invoiced[0].original, "2026-03-01");
+  assert.equal(invoiced[0].date, "2026-04-15");
+  assert.equal(invoiced[0].pending, 800);
+  assert.equal(milestone.cashDate, null);
+  assert.equal(i.fechaVencimiento, "2026-03-01");
+ });
  test(`${type}: projects the entered collection date without presentation or real payments`,()=>{
   const milestone={...m,type,source:"",edp:undefined,cashDate:"2026-05-15"};
   const project={...p,invoiceLinks:[],milestones:[milestone]};
