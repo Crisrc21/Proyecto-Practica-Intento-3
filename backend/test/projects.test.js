@@ -55,6 +55,20 @@ test("CEEC conditions persist without rewriting existing EDP or hidden project d
   }
 });
 
+test("advance expected receipt date persists independently of invoice and cash dates", async t => {
+  const { service } = await setup(t);
+  const saved = await service.save({ expectedRevision: 0, project: project({ milestones: [milestone({ type: "Anticipo", name: "Anticipo del contrato", expectedReceiptDate: "2026-04-10" })] }) });
+  const updated = await service.save({ expectedRevision: saved.revision, project: { ...saved, milestones: saved.milestones.map(m => ({ ...m, expectedReceiptDate: "2026-05-10", cashAmount: 200 })) } });
+  const loaded = (await service.list()).projects[0];
+  assert.equal(loaded.milestones[0].expectedReceiptDate, "2026-05-10");
+  assert.equal(loaded.milestones[0].cashDate, saved.milestones[0].cashDate);
+  assert.equal(loaded.milestones[0].baselineCashDate, saved.milestones[0].baselineCashDate);
+  assert.equal(loaded.milestones[0].baselineCashAmount, saved.milestones[0].baselineCashAmount);
+  assert.deepEqual(loaded.invoiceLinks, saved.invoiceLinks);
+  assert(updated.history.at(-1).changes.some(c => c.includes("recepcion del anticipo")));
+  assert.throws(() => validateProject(project({ milestones: [milestone({ expectedReceiptDate: "2026-02-30" })] })), /Fecha/);
+});
+
 test("declared EDP total persists and rejects invalid quantities", async t => {
   const { service } = await setup(t);
   const saved = await service.save({ project: project({ milestones: [milestone({ edpCount: 12 })] }), expectedRevision: 0 });

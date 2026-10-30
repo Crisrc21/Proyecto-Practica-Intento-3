@@ -15,6 +15,7 @@ export interface EdpCondition {
   triggeredDate: string | null; presentedDate: string | null; approvedDate: string | null; approvalEvidence: string;
 }
 export interface Milestone {
+  expectedReceiptDate?: string | null;
   originalExpectedCashDate?: string | null;
   id: string; name: string; type: typeof milestoneTypes[number]; scope: typeof projectScopes[number] | typeof legacyScopes[number]; edpCount?: number; detailKeys?: StageKey[];
   startDate: string | null; baselineDate: string | null; forecastDate: string | null; actualDate: string | null;

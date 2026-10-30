@@ -18,7 +18,7 @@ export function contractMilestones(project: Project, invoices: FacturaCalculada[
   return [
     { key: "firma", name: "Firma del contrato", actual: signatureDate, base: signature?.baselineDate || project.signedDate, forecast: project.signedDate,
       detail: signatureDate ? "Inicio contractual confirmado." : "Firma pendiente al corte seleccionado." },
-    { key: "anticipo", name: "Anticipo", actual: paymentDate(advances), base: dates(advances, "baselineCashDate"), forecast: dates(advances, "cashDate"),
+    { key: "anticipo", name: "Anticipo", actual: paymentDate(advances), base: dates(advances, "baselineCashDate"), forecast: dates(advances.map(m => ({ ...m, cashDate: m.expectedReceiptDate === undefined ? m.cashDate : m.expectedReceiptDate })), "cashDate"),
       detail: paymentDate(advances) ? "Anticipo cobrado según las facturas vinculadas." : advances.length ? "Se cumple con el cobro total del anticipo. Revisa sus facturas y abonos." : "Registra el monto y la fecha esperada del anticipo." },
     { key: "retenciones", name: "Retenciones y cierre", actual: closureDate, base: dates(retentions, "baselineCashDate"), forecast: dates(retentions, "cashDate"),
       detail: closureDate ? "Retenciones liberadas y cobros completos de los EDP y facturas vinculadas." : !retentions.length ? "Programa la liberación y el cobro de las retenciones." : !covered ? "Verifica que los EDP cubran el contrato para evaluar el cierre financiero." : !released ? "Pendiente de acreditar la liberación de las retenciones." : "El cierre requiere cobrar las retenciones y resolver los demás saldos del proyecto." }
