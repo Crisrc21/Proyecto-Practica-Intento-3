@@ -5,6 +5,10 @@ import ts from "typescript";
 const source=await readFile(new URL("../src/modules/projects/data/project-history.ts",import.meta.url),"utf8");
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const {stageReports,progressSeries,edpPayments}=await import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+const historyUrl = `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`;
+const checklistSource = await readFile(new URL("../src/modules/projects/data/edp-checklist.ts", import.meta.url), "utf8");
+const checklistJs = ts.transpileModule(checklistSource, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText.replace('"./project-history"', JSON.stringify(historyUrl));
+const { edpChecklist } = await import(`data:text/javascript;base64,${Buffer.from(checklistJs).toString("base64")}`);
 const project={areaM2:1000,units:10,progressReports:[
   {id:"later",stageKey:"fabricacion",date:"2026-03-01",quantity:800,completedUnits:8,percent:null},
   {id:"earlier",stageKey:"fabricacion",date:"2026-01-01",quantity:200,completedUnits:2,percent:null},
@@ -37,4 +41,68 @@ test("missing source, partial invoicing and credits do not falsely complete the 
   assert.equal(edpPayments(project,m,[],"ready","2026-03-31").paid,null);
   assert.equal(edpPayments(project,{...m,invoicingComplete:false},[invoice],"ready","2026-03-31").completed,false);
   assert.equal(edpPayments(project,m,[{...invoice,pagos:[],notasCredito:[{fecha:"2026-02-01",monto:1000}]}],"ready","2026-03-31").completed,false);
+});
+
+test("advance payment status is shared and independent of the removed checkbox", () => {
+  const p = { ...project, currency: "CLP" };
+  const advance = { ...m, name: "Anticipo", type: "Anticipo", cashAmount: 1000, invoicingComplete: false };
+  for (const [cutoff, expected] of [["2026-02-28", false], ["2026-03-31", true]]) {
+    assert.equal(edpPayments(p, advance, [invoice], "ready", cutoff).completed, expected);
+    assert.equal(edpChecklist(p, advance, [invoice], "ready", cutoff).paid, expected);
+  }
+  assert.equal(edpPayments(p, advance, [invoice], "ready", "2026-03-31").paidDate, "2026-03-01");
+  const partialBill = { ...invoice, monto: 100, pagos: [{ fechaPago: "2026-02-01", monto: 100 }] };
+  assert.equal(edpPayments(p, advance, [partialBill], "ready", "2026-03-31").completed, false);
+  assert.equal(edpChecklist(p, advance, [partialBill], "ready", "2026-03-31").paid, false);
+  assert.equal(edpPayments(p, advance, [{ ...invoice, anulada: true }], "ready", "2026-03-31").completed, false);
+  assert.equal(edpPayments(p, advance, [invoice], "error", "2026-03-31").completed, false);
+  assert.equal(edpPayments(p, { ...advance, cashAmount: null }, [invoice], "ready", "2026-03-31").completed, false);
+});
+
+test("UF advances need conversion and simulation compares payments in UF", () => {
+  const advance = { ...m, name: "Anticipo", type: "Anticipo", cashAmount: 10, invoicingComplete: false };
+  const p = { ...project, currency: "UF", ufValue: 100 };
+  assert.equal(edpPayments(p, advance, [invoice], "ready", "2026-03-31").completed, true);
+  assert.equal(edpPayments({ ...p, ufValue: null }, advance, [invoice], "ready", "2026-03-31").completed, false);
+  const sim = { ...p, simulation: { ufValue: 100, invoices: [{ id: "i", number: "1", issued: "2026-01-01", amountUF: 10, payments: [{ date: "2026-03-01", amountUF: 10 }] }] } };
+  assert.equal(edpPayments(sim, advance, [], "ready", "2026-03-31").completed, true);
+  assert.equal(edpChecklist(sim, { ...advance, cashAmount: 20 }, [], "ready", "2026-03-31").paid, false);
+});
+
+test("an overpaid invoice cannot hide another unpaid invoice", () => {
+  const p = { ...project, currency: "CLP", invoiceLinks: [...project.invoiceLinks, { invoiceId: "j", milestoneId: "e" }] };
+  const advance = { ...m, type: "Anticipo", cashAmount: 1000 };
+  const invoices = [{ ...invoice, monto: 500 }, { ...invoice, id: "j", monto: 500, pagos: [] }];
+  assert.equal(edpPayments(p, advance, invoices, "ready", "2026-03-31").completed, false);
+});
+
+test("retention status requires the total registered amount in both views", () => {
+  const p = { ...project, currency: "CLP" };
+  const retained = { ...m, name: "Retenciones", type: "Retenciones", cashAmount: 1000, invoicingComplete: false };
+  const smallBill = { ...invoice, monto: 100, pagos: [{ fechaPago: "2026-02-01", monto: 100 }] };
+  const result = edpPayments(p, retained, [smallBill], "ready", "2026-03-31");
+  assert.equal(result.completed, false);
+  assert.equal(result.reason, "Retenciones cobradas parcialmente");
+  assert.equal(edpChecklist(p, retained, [smallBill], "ready", "2026-03-31").paid, false);
+  for (const [cutoff, expected] of [["2026-02-28", false], ["2026-03-31", true]]) {
+    assert.equal(edpPayments(p, retained, [invoice], "ready", cutoff).completed, expected);
+    assert.equal(edpChecklist(p, retained, [invoice], "ready", cutoff).paid, expected);
+  }
+  assert.equal(edpPayments(p, retained, [invoice], "ready", "2026-03-31").paidDate, "2026-03-01");
+  assert.equal(edpPayments(p, retained, [{ ...invoice, anulada: true }], "ready", "2026-03-31").completed, false);
+  assert.equal(edpPayments(p, { ...retained, cashAmount: null }, [invoice], "ready", "2026-03-31").completed, false);
+  assert.equal(edpPayments(p, retained, [], "ready", "2026-03-31").completed, false);
+});
+
+test("retentions handle multiple invoices and UF conversion without hiding unpaid balances", () => {
+  const retained = { ...m, name: "Retenciones", type: "Retenciones", cashAmount: 10, invoicingComplete: false };
+  const p = { ...project, currency: "UF", ufValue: 100, invoiceLinks: [...project.invoiceLinks, { invoiceId: "j", milestoneId: "e" }] };
+  const firstBill = { ...invoice, monto: 400, pagos: [{ fechaPago: "2026-02-01", monto: 400 }] };
+  const secondBill = { ...invoice, id: "j", monto: 600, pagos: [{ fechaPago: "2026-03-01", monto: 600 }] };
+  assert.equal(edpPayments(p, retained, [firstBill, secondBill], "ready", "2026-03-31").completed, true);
+  assert.equal(edpPayments({ ...p, ufValue: null }, retained, [firstBill, secondBill], "ready", "2026-03-31").completed, false);
+  assert.equal(edpPayments(p, retained, [{ ...firstBill, pagos: invoice.pagos }, { ...secondBill, pagos: [] }], "ready", "2026-03-31").completed, false);
+  const sim = { ...p, invoiceLinks: project.invoiceLinks, simulation: { ufValue: 100, invoices: [{ id: "i", number: "1", issued: "2026-01-01", amountUF: 10, payments: [{ date: "2026-03-01", amountUF: 10 }] }] } };
+  assert.equal(edpPayments(sim, retained, [], "ready", "2026-03-31").completed, true);
+  assert.equal(edpPayments(sim, { ...retained, cashAmount: 20 }, [], "ready", "2026-03-31").completed, false);
 });

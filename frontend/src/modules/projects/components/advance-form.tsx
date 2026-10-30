@@ -32,8 +32,9 @@ export function AdvanceForm({ project, milestone, cutoff, onSave, onClose }: {
     <label className="project-field">Fecha esperada de recepción<input type="date" value={draft.expectedReceiptDate ?? ""} onChange={e => setDraft(d => ({ ...d, expectedReceiptDate: e.target.value || null }))} /><span>Informativa. No modifica las fechas de las facturas ni la programación de cobros.</span></label>
     <label className="project-field project-full">Observaciones<textarea rows={3} maxLength={4000} value={draft.notes} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} /></label>
     <h3 className="project-full">Devolución</h3>
+    <p className="project-note project-full">El anticipo se considera cobrado cuando los pagos de las facturas vinculadas cubren el monto pactado y esas facturas están pagadas. Para contratos en UF, la comparación con pagos en pesos utiliza la UF de proyección configurada en la ficha del proyecto.</p>
     <div className="project-full project-edp-settlement" aria-live="polite"><strong>Devolución aplicada: {amount(totals.applied, project.currency)}</strong><strong>Saldo pendiente de devolver: {amount(totals.balance === null ? null : Math.max(0, totals.balance), project.currency)}</strong></div>
-    <p className="project-note project-full">Descuentos por devolución de anticipo de los EDP aprobados al {shortDate(cutoff)}. El saldo compara el monto pactado con lo devuelto al mandante.</p>
+    <p className="project-note project-full">Descuentos por devolución de anticipo de los EDP presentados al {shortDate(cutoff)}. El saldo compara el monto pactado con lo devuelto al mandante.</p>
     {totals.multiple && <p className="project-note project-full">El proyecto tiene varios anticipos. La devolución y el saldo corresponden al total del proyecto: monto pactado {amount(totals.agreed, project.currency)}.</p>}
     {totals.balance !== null && totals.balance < 0 && <p role="alert" className="project-error project-full">La devolución supera el monto pactado en {amount(-totals.balance, project.currency)}.</p>}
     <SaveFooter busy={busy} error={error} onClose={close} label="Guardar anticipo" />

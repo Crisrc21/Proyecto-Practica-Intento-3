@@ -93,8 +93,8 @@ test("urbanization groups independently schedule two EDP at 50 percent", () => {
 test("retention collection is independent of global closure and obsolete release fields", () => {
   const advance = { id: "a", type: "Anticipo", invoicingComplete: true };
   const edp = { id: "e", type: "EDP", invoicingComplete: true, settlement: { gross: 260000 } };
-  const retained = { id: "r", type: "Retenciones", invoicingComplete: true, actualDate: "2026-03-01", evidence: "Liberadas" };
-  const p = { ...project, milestones: [advance, edp, retained], invoiceLinks: ["a", "e", "r"].map(id => ({ invoiceId: id, milestoneId: id })) };
+  const retained = { id: "r", type: "Retenciones", cashAmount: 1000, invoicingComplete: true, actualDate: "2026-03-01", evidence: "Liberadas" };
+  const p = { ...project, currency: "CLP", milestones: [advance, edp, retained], invoiceLinks: ["a", "e", "r"].map(id => ({ invoiceId: id, milestoneId: id })) };
   const bills = ["a", "e", "r"].map(id => ({ id, numero: id, fechaEmision: "2026-02-01", monto: 1000, pagos: [{ fechaPago: "2026-03-05", monto: 1000 }], notasCredito: [], notasDebito: [] }));
   const get = (pr = p, invoices = bills, date = "2026-03-31", state = "ready") => contractMilestones(pr, invoices, state, date);
   assert.equal(get().length, 3); assert.equal(get()[2].actual, "2026-03-05");

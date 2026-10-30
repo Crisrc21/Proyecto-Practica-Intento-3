@@ -48,7 +48,7 @@ export function EdpListBadges({ project, milestone, invoices, dataState, cutoff 
   return <div className="project-edp-list-badges">
     {(status === "Presentado" || !linked) && <span className={`project-badge ${status === "Presentado" ? "success" : "neutral"}`}>{status}</span>}
     {linked && <span className="project-badge success">Facturado</span>}
-    {linked && status === "Presentado" && <span className={`project-badge ${paid ? "success" : "warning"}`}>{paid ? "Cobrado" : "No cobrado"}</span>}
+    {linked && (status === "Presentado" || ["Anticipo", "Retenciones"].includes(milestone.type)) && <span className={`project-badge ${paid ? "success" : "warning"}`}>{paid ? "Cobrado" : "No cobrado"}</span>}
   </div>;
 }
 
@@ -69,7 +69,7 @@ function EdpDetail({ incomeRows, project, allProjects, onSave, milestone: m, cut
   if (presented && occurred(presented)) events.push({ id: "presentation", date: presented, title: "EDP presentado", detail: "Enviado para revisión y aprobación" });
   if (approved && occurred(approved)) events.push({ id: "approval", date: approved, title: "EDP aprobado", detail: "Aprobación documental registrada", evidence: edp?.approvalEvidence || m.evidence });
   payments.payments.forEach(p => events.push({ id: `pay-${p.id}`, date: p.date, title: `${p.amount < 0 ? "Ajuste de cobro" : "Pago recibido"} · factura ${p.invoiceNumber}`, detail: amount(p.amount, project.simulation ? "UF" : "CLP"), href: `/trazabilidad?factura=${encodeURIComponent(p.invoiceId)}` }));
-  const next = checklist.paid ? "Las facturas asociadas figuran pagadas." : !checklist.advance ? "Completa y guarda los datos del EDP." : !checklist.linked ? "Asocia la factura en Facturas y estados de pago." : "El paso Cobrado se completará cuando todas las facturas asociadas figuren pagadas.";
+  const next = m.type === "Retenciones" ? payments.reason + ". Los pagos deben cubrir el total de retenciones registrado y las facturas vinculadas deben estar pagadas." : m.type === "Anticipo" ? payments.reason + ". Revisa el monto pactado y los pagos de sus facturas." : checklist.paid ? "Las facturas asociadas figuran pagadas." : !checklist.advance ? "Completa y guarda los datos del EDP." : !checklist.linked ? "Asocia la factura en Facturas y estados de pago." : "El paso Cobrado se completará cuando todas las facturas asociadas figuren pagadas.";
   return <div className="project-stack project-edp-detail"><section className="project-panel"><div className="project-panel-heading"><div><span className="project-eyebrow">{edp ? stages.find(s => s.key === edp.stageKey)?.label : m.scope}</span><h2>{m.name}</h2>{m.source && <div className="project-edp-reference">{m.source.startsWith("http") ? <a href={m.source} target="_blank" rel="noreferrer">Enlace del EDP</a> : <span>Referencia del EDP: {m.source}</span>}</div>}</div><button className="project-button primary" onClick={onEdit}>{m.type === "Anticipo" ? "Gestionar anticipo" : m.type === "Retenciones" ? "Gestionar retenciones" : attach ? "Definir condición" : "Gestionar EDP"}</button></div>
     <ol className="project-edp-journey" aria-label="Recorrido del estado de pago">{steps.map((step, i) => <li key={i} className={step.done ? "is-complete" : ""}><span>{step.done ? <Check size={16} /> : i + 1}</span><strong>{step.name}</strong><small>{step.date && step.done ? shortDate(step.date) : step.detail}</small></li>)}</ol>
     {edp && m.type !== "Anticipo" && <p className="project-note">{edp.presentedDate ? `Fecha de presentación del EDP: ${shortDate(edp.presentedDate)}` : "Fecha de presentación pendiente"}</p>}
