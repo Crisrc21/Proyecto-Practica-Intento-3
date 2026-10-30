@@ -159,7 +159,7 @@ export function validateProject(input) {
       baselineCashDate: date(m.baselineCashDate, "cobro base")
     };
     if (m.originalExpectedCashDate !== undefined) next.originalExpectedCashDate = date(m.originalExpectedCashDate, "cobro previsto originalmente");
-    if (m.expectedReceiptDate !== undefined) next.expectedReceiptDate = date(m.expectedReceiptDate, "recepción esperada del anticipo");
+    if (m.expectedReceiptDate !== undefined) next.expectedReceiptDate = date(m.expectedReceiptDate, "recepción esperada");
     if (m.settlement != null) {
       const a = m.settlement;
       const adjustments = a.adjustments ?? 0;

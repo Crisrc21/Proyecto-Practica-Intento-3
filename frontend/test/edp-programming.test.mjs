@@ -90,7 +90,7 @@ test("urbanization groups independently schedule two EDP at 50 percent", () => {
     assert.deepEqual(rows.map(m => m.cashAmount), [10400, 10400]);
   }
 });
-test("financial closure needs release evidence, complete contractual coverage and collection of all EDP", () => {
+test("retention collection is independent of global closure and obsolete release fields", () => {
   const advance = { id: "a", type: "Anticipo", invoicingComplete: true };
   const edp = { id: "e", type: "EDP", invoicingComplete: true, settlement: { gross: 260000 } };
   const retained = { id: "r", type: "Retenciones", invoicingComplete: true, actualDate: "2026-03-01", evidence: "Liberadas" };
@@ -98,9 +98,10 @@ test("financial closure needs release evidence, complete contractual coverage an
   const bills = ["a", "e", "r"].map(id => ({ id, numero: id, fechaEmision: "2026-02-01", monto: 1000, pagos: [{ fechaPago: "2026-03-05", monto: 1000 }], notasCredito: [], notasDebito: [] }));
   const get = (pr = p, invoices = bills, date = "2026-03-31", state = "ready") => contractMilestones(pr, invoices, state, date);
   assert.equal(get().length, 3); assert.equal(get()[2].actual, "2026-03-05");
-  assert.equal(get(p, bills.map(b => b.id === "e" ? { ...b, pagos: [] } : b))[2].actual, null);
-  assert.equal(get({ ...p, milestones: [advance, edp, { ...retained, actualDate: null }] })[2].actual, null);
-  assert.equal(get({ ...p, contractAmount: 300000 })[2].actual, null);
+  assert.equal(get(p, bills.map(b => b.id === "e" ? { ...b, pagos: [] } : b))[2].actual, "2026-03-05");
+  assert.equal(get({ ...p, milestones: [advance, edp, { ...retained, actualDate: null, invoicingComplete: false }] })[2].actual, "2026-03-05");
+  assert.equal(get({ ...p, contractAmount: null })[2].actual, "2026-03-05");
+  assert.equal(get(p, bills.map(b => b.id === "r" ? { ...b, pagos: [] } : b))[2].actual, null);
   assert.equal(get(p, bills, "2026-02-28")[2].actual, null);
   assert.equal(get(p, bills, "2026-03-31", "error")[2].actual, null);
   const future = { ...bills[0], id: "future", fechaEmision: "2026-04-01" };

@@ -20,6 +20,19 @@ test("existing declaration immediately exposes thirteen slots without invented m
   }
   assert.equal(project.milestones.length, 1);
 });
+test("twelve advance EDP retain all slots when advance and retention records are added", () => {
+  const project = { id: "p", milestones: [{ ...first, edpCount: 12 }] };
+  const before = edpSlots(project);
+  const advance = { id: "a", type: "Anticipo", name: "Z anticipo" };
+  const retention = { id: "r", type: "Retenciones", name: "EDP 12 retenciones" };
+  const after = edpSlots({ ...project, milestones: [...project.milestones, advance, retention] });
+  assert.equal(after.length, 14);
+  assert.equal(after[0].id, "a");
+  assert.equal(after.at(-1).id, "r");
+  assert.deepEqual(after.filter(m => m.type === "EDP").map(m => m.id), before.map(m => m.id));
+  assert.equal(after[12].name, "EDP 12");
+});
+
 test("completing a slot retains its identity and does not duplicate following EDP", () => {
   const project = { id: "p", milestones: [first] };
   const before = edpSlots(project);

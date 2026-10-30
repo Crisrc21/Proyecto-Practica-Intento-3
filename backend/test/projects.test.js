@@ -65,8 +65,21 @@ test("advance expected receipt date persists independently of invoice and cash d
   assert.equal(loaded.milestones[0].baselineCashDate, saved.milestones[0].baselineCashDate);
   assert.equal(loaded.milestones[0].baselineCashAmount, saved.milestones[0].baselineCashAmount);
   assert.deepEqual(loaded.invoiceLinks, saved.invoiceLinks);
-  assert(updated.history.at(-1).changes.some(c => c.includes("recepcion del anticipo")));
+  assert(updated.history.at(-1).changes.some(c => c.includes("fecha esperada de recepcion")));
   assert.throws(() => validateProject(project({ milestones: [milestone({ expectedReceiptDate: "2026-02-30" })] })), /Fecha/);
+});
+
+test("saving and editing retention preserves twelve advance EDP and cash dates", async t => {
+  const { service } = await setup(t);
+  const first = milestone({ edpCount: 12 });
+  const retention = milestone({ id: "retention", type: "Retenciones", name: "Liberación de retenciones", expectedReceiptDate: "2026-05-01", cashAmount: 500 });
+  const saved = await service.save({ project: project({ milestones: [first, retention] }), expectedRevision: 0 });
+  const updated = await service.save({ project: { ...saved, milestones: saved.milestones.map(m => m.id === retention.id ? { ...m, expectedReceiptDate: "2026-06-01", notes: "Actualizada" } : m) }, expectedRevision: saved.revision });
+  assert.equal(updated.milestones.filter(m => m.type === "Retenciones").length, 1);
+  assert.equal(updated.milestones[0].edpCount, 12);
+  assert.equal(updated.milestones[1].cashDate, retention.cashDate);
+  assert.equal(updated.milestones[1].baselineCashDate, retention.baselineCashDate);
+  assert.equal((await service.list()).projects[0].milestones[1].expectedReceiptDate, "2026-06-01");
 });
 
 test("declared EDP total persists and rejects invalid quantities", async t => {
